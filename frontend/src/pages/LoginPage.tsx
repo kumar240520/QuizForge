@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { Shield, Lock, Mail, ArrowRight, AlertCircle, KeyRound } from 'lucide-react';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { Shield, Lock, Mail, ArrowRight, AlertCircle, KeyRound, Smartphone } from 'lucide-react';
 import { authService } from '../services/auth';
 import { ForgotPasswordModal } from '../components/auth/ForgotPasswordModal';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const sessionReason = searchParams.get('reason');
+
   const [emailOrUsername, setEmailOrUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
@@ -58,6 +61,30 @@ export const LoginPage: React.FC = () => {
               Enter your credentials to access your assessments & question banks.
             </p>
           </div>
+
+          {sessionReason === 'session_superseded' && !error && (
+            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-xs flex items-start gap-3">
+              <Smartphone className="w-4 h-4 shrink-0 text-amber-500 mt-0.5" />
+              <div className="space-y-0.5">
+                <p className="font-semibold text-foreground">Single Device Policy Enforced</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Your account was logged into on another device. Your previous session here has been automatically terminated. Sign in again to switch back to this device.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {sessionReason === 'session_expired' && !error && (
+            <div className="p-3.5 rounded-2xl bg-blue-500/10 border border-blue-500/30 text-blue-800 dark:text-blue-300 text-xs flex items-start gap-3">
+              <AlertCircle className="w-4 h-4 shrink-0 text-blue-500 mt-0.5" />
+              <div className="space-y-0.5">
+                <p className="font-semibold text-foreground">Session Expired</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Your session has ended. Please log in again to continue.
+                </p>
+              </div>
+            </div>
+          )}
 
           {error && (
             <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-center gap-2">

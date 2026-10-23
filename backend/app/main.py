@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.app.core.config import settings
-from backend.app.core.database import engine, Base, SessionLocal
+from backend.app.core.database import engine, Base, SessionLocal, run_schema_migrations
 from backend.app.api.v1.api_router import api_v1_router
 from backend.app.models.question_bank import QuestionBank, Subject, Topic
 from backend.app.models.question import Question
@@ -12,13 +12,15 @@ from backend.app.models.quiz import Quiz
 # Eager table creation for serverless environments (Vercel)
 try:
     Base.metadata.create_all(bind=engine)
+    run_schema_migrations()
 except Exception:
     pass
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Ensure all tables exist on startup
+    # Ensure all tables exist on startup and schema is migrated
     Base.metadata.create_all(bind=engine)
+    run_schema_migrations()
     yield
 
 app = FastAPI(

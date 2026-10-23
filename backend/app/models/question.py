@@ -56,4 +56,4 @@ class Question(BaseModel):
     bank = relationship("QuestionBank", back_populates="questions")
     subject = relationship("Subject", back_populates="questions")
     topic = relationship("Topic", back_populates="questions")
-    revision_item = relationship("RevisionItem", back_populates="question", uselist=False, cascade="all, delete-orphan")
+    revision_items = relationship("RevisionItem", back_populates="question", cascade="all, delete-orphan")

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean
+from sqlalchemy import Column, String, Boolean, DateTime
 from backend.app.models.base import BaseModel
 
 class User(BaseModel):
@@ -11,6 +11,8 @@ class User(BaseModel):
     role = Column(String(50), nullable=False, default="candidate") # "admin", "candidate"
     is_active = Column(Boolean, nullable=False, default=True)
     gemini_api_key = Column(String(255), nullable=True)
+    active_session_id = Column(String(64), nullable=True, index=True)
+    last_login_at = Column(DateTime(timezone=True), nullable=True)
 
     @property
     def is_gemini_configured(self) -> bool:

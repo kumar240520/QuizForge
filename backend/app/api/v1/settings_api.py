@@ -15,7 +15,7 @@ from backend.app.schemas.settings_schema import (
 )
 from backend.app.schemas.generation_schema import TestConnectionRequest, TestConnectionResponse
 from backend.app.models.user import User
-from backend.app.core.security import get_current_user_optional
+from backend.app.core.security import get_current_user_optional, get_current_user, require_admin
 from backend.app.integrations.gemini.client import GeminiClient, SUPPORTED_MODELS
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
@@ -172,19 +172,29 @@ def export_database_backup(db: Session = Depends(get_db)):
     }
 
 @router.post("/data/reset-history")
-def reset_history(db: Session = Depends(get_db)):
-    """Reset attempt history and spaced revision states without deleting question banks."""
-    db.query(QuestionAttemptResult).delete()
-    db.query(QuizResult).delete()
-    db.query(RevisionItem).delete()
+def reset_history(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Reset attempt history and spaced revision states for current user."""
+    user_results = db.query(QuizResult).filter(QuizResult.user_id == current_user.id).all()
+    result_ids = [r.id for r in user_results]
+    if result_ids:
+        db.query(QuestionAttemptResult).filter(QuestionAttemptResult.result_id.in_(result_ids)).delete(synchronize_session=False)
+        db.query(QuizResult).filter(QuizResult.user_id == current_user.id).delete(synchronize_session=False)
+    db.query(RevisionItem).filter(RevisionItem.user_id == current_user.id).delete(synchronize_session=False)
     db.commit()
-    return {"message": "Assessment attempt history and revision items have been reset."}
+    return {"message": "Your assessment attempt history and revision items have been reset."}
 
 @router.post("/data/purge-full-storage")
-def purge_full_storage(payload: PurgeStorageRequest, db: Session = Depends(get_db)):
+def purge_full_storage(
+    payload: PurgeStorageRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
     """
     DANGER ZONE: Completely delete all database records, drop all tables, and recreate clean schema.
-    Requires exact confirmation string: 'DELETE STORAGE'.
+    Requires exact confirmation string: 'DELETE STORAGE' and Administrator privileges.
     """
     if payload.confirmation.strip() != "DELETE STORAGE":
         raise HTTPException(

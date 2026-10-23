@@ -1,5 +1,7 @@
 import io
 import base64
+import uuid
+from datetime import datetime, timezone
 import qrcode
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -98,9 +100,15 @@ def signup(payload: UserRegisterRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
     
-    # 4. Generate JWT access token
+    # 4. Assign session ID and generate JWT access token
+    session_id = uuid.uuid4().hex
+    new_user.active_session_id = session_id
+    new_user.last_login_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(new_user)
+
     access_token = create_access_token(
-        data={"sub": str(new_user.id), "email": new_user.email, "role": new_user.role}
+        data={"sub": str(new_user.id), "email": new_user.email, "role": new_user.role, "sid": session_id}
     )
     
     return TokenResponse(
@@ -129,8 +137,15 @@ def login(payload: UserLoginRequest, db: Session = Depends(get_db)):
             detail="This user account has been disabled."
         )
         
+    # Single-device session: generate a new session ID to evict any older device session
+    session_id = uuid.uuid4().hex
+    user.active_session_id = session_id
+    user.last_login_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(user)
+
     access_token = create_access_token(
-        data={"sub": str(user.id), "email": user.email, "role": user.role}
+        data={"sub": str(user.id), "email": user.email, "role": user.role, "sid": session_id}
     )
     
     return TokenResponse(
@@ -173,14 +188,17 @@ def forgot_password_reset(payload: ForgotPasswordResetRequest, db: Session = Dep
             detail="This user account has been disabled."
         )
 
-    # 3. Update password
+    # 3. Update password and assign fresh session ID
+    session_id = uuid.uuid4().hex
     user.hashed_password = hash_password(payload.new_password)
+    user.active_session_id = session_id
+    user.last_login_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(user)
 
     # 4. Generate JWT access token to sign user in seamlessly
     access_token = create_access_token(
-        data={"sub": str(user.id), "email": user.email, "role": user.role}
+        data={"sub": str(user.id), "email": user.email, "role": user.role, "sid": session_id}
     )
 
     return TokenResponse(
@@ -188,6 +206,13 @@ def forgot_password_reset(payload: ForgotPasswordResetRequest, db: Session = Dep
         token_type="bearer",
         user=UserResponse.model_validate(user)
     )
+
+@router.post("/logout")
+def logout(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Log out current user and terminate their active session."""
+    current_user.active_session_id = None
+    db.commit()
+    return {"message": "Successfully logged out."}
 
 @router.get("/me", response_model=UserResponse)
 def get_me(current_user: User = Depends(get_current_user)):

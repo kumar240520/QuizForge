@@ -7,6 +7,7 @@ class QuizSession(BaseModel):
     
     session_token = Column(String(64), unique=True, index=True, nullable=False)
     quiz_id = Column(Integer, ForeignKey("quizzes.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     mode = Column(String(50), nullable=False, default="exam")
     
     # State machine: created, ready, in_progress, paused, submitted, evaluated
@@ -34,6 +35,7 @@ class QuizSession(BaseModel):
     visited_question_ids = Column(JSON, nullable=True, default=list) # [5, 10]
     
     quiz = relationship("Quiz", back_populates="sessions")
+    user = relationship("User", backref="quiz_sessions")
     answers = relationship("SessionAnswer", back_populates="session", cascade="all, delete-orphan")
     results = relationship("QuizResult", back_populates="session", cascade="all, delete-orphan")
 

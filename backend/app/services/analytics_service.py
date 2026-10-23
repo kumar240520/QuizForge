@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from backend.app.models.result import QuizResult, QuestionAttemptResult
@@ -7,8 +7,13 @@ from backend.app.models.revision import RevisionItem
 
 class AnalyticsService:
     @classmethod
-    def get_dashboard_summary(cls, db: Session) -> Dict[str, Any]:
-        results = db.query(QuizResult).order_by(QuizResult.completed_at.desc()).all()
+    def get_dashboard_summary(cls, db: Session, user_id: Optional[int] = None) -> Dict[str, Any]:
+        query = db.query(QuizResult)
+        if user_id is not None:
+            query = query.filter(QuizResult.user_id == user_id)
+        else:
+            query = query.filter(QuizResult.user_id == None)
+        results = query.order_by(QuizResult.completed_at.desc()).all()
         
         total_attempts = len(results)
         if total_attempts == 0:
@@ -62,8 +67,13 @@ class AnalyticsService:
                 "completed_at": r.completed_at.isoformat()
             })
 
-        # Mastery items count
-        rev_items = db.query(RevisionItem).all()
+        # Mastery items count scoped to user
+        rev_query = db.query(RevisionItem)
+        if user_id is not None:
+            rev_query = rev_query.filter(RevisionItem.user_id == user_id)
+        else:
+            rev_query = rev_query.filter(RevisionItem.user_id == None)
+        rev_items = rev_query.all()
         mastery_counts = {"new": 0, "learning": 0, "needs_revision": 0, "mastered": 0}
         for item in rev_items:
             st = item.mastery_state
@@ -82,8 +92,13 @@ class AnalyticsService:
         }
 
     @classmethod
-    def get_performance_analytics(cls, db: Session) -> Dict[str, Any]:
-        results = db.query(QuizResult).order_by(QuizResult.completed_at.asc()).all()
+    def get_performance_analytics(cls, db: Session, user_id: Optional[int] = None) -> Dict[str, Any]:
+        query = db.query(QuizResult)
+        if user_id is not None:
+            query = query.filter(QuizResult.user_id == user_id)
+        else:
+            query = query.filter(QuizResult.user_id == None)
+        results = query.order_by(QuizResult.completed_at.asc()).all()
         
         # Trend over time
         trends = []

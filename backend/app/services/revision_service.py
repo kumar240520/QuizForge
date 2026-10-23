@@ -15,9 +15,14 @@ class RevisionService:
         cls, 
         db: Session, 
         due_only: bool = False,
-        mastery_filter: Optional[str] = None
+        mastery_filter: Optional[str] = None,
+        user_id: Optional[int] = None
     ) -> List[RevisionItemResponse]:
         query = db.query(RevisionItem).join(Question, RevisionItem.question_id == Question.id)
+        if user_id is not None:
+            query = query.filter(RevisionItem.user_id == user_id)
+        else:
+            query = query.filter(RevisionItem.user_id == None)
         
         now = utc_now()
         if due_only:
@@ -58,9 +63,13 @@ class RevisionService:
         return results
 
     @classmethod
-    def create_revision_quiz(cls, db: Session, payload: CreateRevisionQuizRequest) -> Quiz:
+    def create_revision_quiz(cls, db: Session, payload: CreateRevisionQuizRequest, user_id: Optional[int] = None) -> Quiz:
         now = utc_now()
         query = db.query(RevisionItem).join(Question, RevisionItem.question_id == Question.id)
+        if user_id is not None:
+            query = query.filter(RevisionItem.user_id == user_id)
+        else:
+            query = query.filter(RevisionItem.user_id == None)
         
         if payload.subject_id:
             query = query.filter(Question.subject_id == payload.subject_id)

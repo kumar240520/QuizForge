@@ -24,10 +24,28 @@ function authFetch(url: string, init?: RequestInit): Promise<Response> {
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (res.status === 401) {
+    let errorDetail = '';
+    try {
+      const cloned = res.clone();
+      const errorJson = await cloned.json();
+      if (errorJson.detail) {
+        errorDetail = typeof errorJson.detail === 'string' ? errorJson.detail : JSON.stringify(errorJson.detail);
+      }
+    } catch {
+      // ignore
+    }
+
     localStorage.removeItem('quizforge_jwt_token');
     localStorage.removeItem('quizforge_user_profile');
+
     if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
-      window.location.href = '/login';
+      if (errorDetail.includes('SESSION_SUPERSEDED')) {
+        window.location.href = '/login?reason=session_superseded';
+      } else if (errorDetail.includes('SESSION_EXPIRED')) {
+        window.location.href = '/login?reason=session_expired';
+      } else {
+        window.location.href = '/login';
+      }
     }
   }
   if (!res.ok) {

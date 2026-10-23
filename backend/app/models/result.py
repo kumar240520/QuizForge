@@ -7,6 +7,7 @@ class QuizResult(BaseModel):
     
     quiz_id = Column(Integer, ForeignKey("quizzes.id", ondelete="CASCADE"), nullable=False, index=True)
     session_id = Column(Integer, ForeignKey("quiz_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     
     total_questions = Column(Integer, nullable=False)
     correct_count = Column(Integer, nullable=False, default=0)
@@ -27,6 +28,7 @@ class QuizResult(BaseModel):
     
     quiz = relationship("Quiz", back_populates="results")
     session = relationship("QuizSession", back_populates="results")
+    user = relationship("User", backref="quiz_results")
     attempt_details = relationship("QuestionAttemptResult", back_populates="result", cascade="all, delete-orphan")
 
 class QuestionAttemptResult(BaseModel):

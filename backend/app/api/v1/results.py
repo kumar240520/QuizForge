@@ -1,17 +1,28 @@
 import csv
 import io
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 from backend.app.core.database import get_db
+from backend.app.core.security import get_current_user_optional
+from backend.app.models.user import User
 from backend.app.models.result import QuizResult, QuestionAttemptResult
 from backend.app.schemas.result_schema import QuizResultResponse, QuizResultListItem, QuestionAttemptDetail
 
 router = APIRouter(prefix="/results", tags=["Results & Analytics"])
 
 @router.get("", response_model=List[QuizResultListItem])
-def list_results(db: Session = Depends(get_db)):
-    results = db.query(QuizResult).order_by(QuizResult.completed_at.desc()).all()
+def list_results(
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    query = db.query(QuizResult)
+    if current_user:
+        if current_user.role != "admin":
+            query = query.filter(QuizResult.user_id == current_user.id)
+    else:
+        query = query.filter(QuizResult.user_id == None)
+    results = query.order_by(QuizResult.completed_at.desc()).all()
     out = []
     for r in results:
         out.append(
@@ -32,10 +43,20 @@ def list_results(db: Session = Depends(get_db)):
     return out
 
 @router.get("/{result_id}", response_model=QuizResultResponse)
-def get_result_details(result_id: int, db: Session = Depends(get_db)):
+def get_result_details(
+    result_id: int,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     result = db.query(QuizResult).filter(QuizResult.id == result_id).first()
     if not result:
         raise HTTPException(status_code=404, detail="Result not found")
+        
+    if result.user_id:
+        if not current_user:
+            raise HTTPException(status_code=401, detail="Authentication required to view this result.")
+        if current_user.role != "admin" and result.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="You do not have permission to view this result.")
         
     attempts = db.query(QuestionAttemptResult).filter(QuestionAttemptResult.result_id == result.id).all()
     
@@ -77,10 +98,20 @@ def get_result_details(result_id: int, db: Session = Depends(get_db)):
     )
 
 @router.get("/{result_id}/export-csv")
-def export_result_csv(result_id: int, db: Session = Depends(get_db)):
+def export_result_csv(
+    result_id: int,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     result = db.query(QuizResult).filter(QuizResult.id == result_id).first()
     if not result:
         raise HTTPException(status_code=404, detail="Result not found")
+        
+    if result.user_id:
+        if not current_user:
+            raise HTTPException(status_code=401, detail="Authentication required to view this result.")
+        if current_user.role != "admin" and result.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="You do not have permission to view this result.")
         
     attempts = db.query(QuestionAttemptResult).filter(QuestionAttemptResult.result_id == result.id).all()
     

@@ -27,7 +27,18 @@ export const authService = {
     localStorage.setItem(USER_KEY, JSON.stringify(user));
   },
 
-  logout: () => {
+  logout: async () => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (token) {
+      try {
+        await fetch(`${API_BASE}/auth/logout`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+      } catch {
+        // ignore network error on logout
+      }
+    }
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
     window.location.href = '/login';

@@ -62,7 +62,7 @@ async def get_current_user_optional(
     token: Optional[str] = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
 ) -> Optional[User]:
-    """Extract current user if valid token is provided, or return None."""
+    """Extract current user if valid token is provided and session is active, or return None."""
     if not token:
         return None
     payload = decode_access_token(token)
@@ -71,13 +71,19 @@ async def get_current_user_optional(
     user_id = payload.get("sub")
     if not user_id:
         return None
-    return db.query(User).filter(User.id == int(user_id), User.is_active == True).first()
+    user = db.query(User).filter(User.id == int(user_id), User.is_active == True).first()
+    if not user:
+        return None
+    token_sid = payload.get("sid")
+    if user.active_session_id and (not token_sid or token_sid != user.active_session_id):
+        return None
+    return user
 
 async def get_current_user(
     token: Optional[str] = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
 ) -> User:
-    """Ensure request is authenticated with a valid JWT token."""
+    """Ensure request is authenticated with a valid JWT token and active session."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials. Please log in.",
@@ -94,6 +100,24 @@ async def get_current_user(
     user = db.query(User).filter(User.id == int(user_id), User.is_active == True).first()
     if not user:
         raise credentials_exception
+
+    token_sid = payload.get("sid")
+    # Single-device session validation
+    if user.active_session_id:
+        if not token_sid or token_sid != user.active_session_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="SESSION_SUPERSEDED: You have been logged in from another device. Please log in again.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    elif token_sid:
+        # User explicitly logged out (active_session_id set to None)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="SESSION_EXPIRED: Your session has ended. Please log in again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     return user
 
 async def require_admin(

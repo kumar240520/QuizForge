@@ -29,7 +29,8 @@ class SessionService:
         quiz: Quiz,
         requested_question_count: Optional[int] = None,
         requested_question_ids: Optional[List[int]] = None,
-        mode: Optional[str] = None
+        mode: Optional[str] = None,
+        user_id: Optional[int] = None
     ) -> QuizSession:
         """Create and initialize a server-authoritative quiz session."""
         if requested_question_ids and len(requested_question_ids) > 0:
@@ -92,6 +93,7 @@ class SessionService:
         session = QuizSession(
             session_token=token,
             quiz_id=quiz.id,
+            user_id=user_id,
             mode=session_mode,
             status="in_progress",
             current_question_index=0,
@@ -595,7 +597,7 @@ class SessionService:
                 type_stats[qtype]["correct"] += 1
 
             # Update spaced repetition revision state
-            cls._update_revision_item(db, q_obj.id, eval_res["is_correct"], now)
+            cls._update_revision_item(db, q_obj.id, eval_res["is_correct"], now, user_id=session.user_id)
 
         percentage = round((total_score / max_possible_score * 100), 2) if max_possible_score > 0 else 0.0
 
@@ -615,6 +617,7 @@ class SessionService:
         quiz_result = QuizResult(
             quiz_id=quiz.id,
             session_id=session.id,
+            user_id=session.user_id,
             total_questions=total_questions,
             correct_count=correct_count,
             incorrect_count=incorrect_count,
@@ -641,11 +644,15 @@ class SessionService:
         return quiz_result
 
     @classmethod
-    def _update_revision_item(cls, db: Session, question_id: int, is_correct: bool, now: datetime):
-        """Update or create SM-2 spaced repetition state for this question."""
-        rev = db.query(RevisionItem).filter(RevisionItem.question_id == question_id).first()
+    def _update_revision_item(cls, db: Session, question_id: int, is_correct: bool, now: datetime, user_id: Optional[int] = None):
+        """Update or create SM-2 spaced repetition state for this question and user."""
+        query = db.query(RevisionItem).filter(RevisionItem.question_id == question_id)
+        if user_id is not None:
+            query = query.filter(RevisionItem.user_id == user_id)
+        rev = query.first()
         if not rev:
             rev = RevisionItem(
+                user_id=user_id,
                 question_id=question_id,
                 mastery_state="learning" if is_correct else "needs_revision",
                 total_attempts=1,
