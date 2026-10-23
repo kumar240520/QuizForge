@@ -13,15 +13,6 @@ sudo apt update && sudo apt upgrade -y
 echo "--> Installing Python 3, venv, pip, Nginx, and build-essential..."
 sudo apt install -y python3 python3-venv python3-pip nginx git curl build-essential
 
-# 3. Install Node.js 20 LTS (NodeSource)
-if ! command -v node &> /dev/null; then
-    echo "--> Installing Node.js 20 LTS..."
-    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-    sudo apt install -y nodejs
-else
-    echo "--> Node.js already installed: $(node -v)"
-fi
-
 APP_DIR="/home/ubuntu/QuizForge"
 
 if [ ! -d "$APP_DIR" ]; then
@@ -30,6 +21,9 @@ if [ ! -d "$APP_DIR" ]; then
 fi
 
 cd "$APP_DIR"
+
+# 3. Clean any corrupted root lockfiles on Ubuntu
+rm -f "$APP_DIR/package-lock.json"
 
 # 4. Set up Backend Python Virtual Environment
 echo "--> Setting up Python virtual environment..."
@@ -40,13 +34,27 @@ fi
 "$APP_DIR/backend/venv/bin/pip" install --upgrade pip
 "$APP_DIR/backend/venv/bin/pip" install -r "$APP_DIR/backend/requirements.txt"
 
-# 5. Build Frontend React/Vite Application
-echo "--> Installing frontend dependencies and compiling static bundle..."
-cd "$APP_DIR/frontend"
-rm -f package-lock.json
-npm install
-npm run build
-cd "$APP_DIR"
+# 5. Build Frontend React/Vite Application (or use pre-compiled dist)
+echo "--> Setting up frontend bundle..."
+if [ -f "$APP_DIR/frontend/dist/index.html" ]; then
+    echo "--> Found pre-compiled frontend distribution bundle."
+else
+    # Install Node.js 20 LTS if not present
+    if ! command -v node &> /dev/null; then
+        echo "--> Installing Node.js 20 LTS..."
+        curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+        sudo apt install -y nodejs
+    fi
+    echo "--> Installing frontend dependencies..."
+    cd "$APP_DIR/frontend"
+    npm install --no-audit --no-fund
+    npm run build
+    cd "$APP_DIR"
+fi
+
+# Set directory permissions so Nginx (www-data) can read static files
+sudo chmod o+x /home/ubuntu
+sudo chmod -R 755 "$APP_DIR/frontend/dist"
 
 # 6. Configure Systemd Service for FastAPI
 echo "--> Configuring quizforge.service systemd daemon..."
