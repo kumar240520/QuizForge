@@ -1,0 +1,38 @@
+1. Which of the following data structures operates on a Last-In, First-Out (LIFO) basis?
+A. Queue
+B. Stack
+C. Priority Queue
+D. Hash Map
+Answer: B
+Explanation: A stack is a linear data structure that follows the LIFO principle, where elements are inserted and deleted from the top.
+
+2. In Python, tuples are immutable while lists are mutable.
+True
+False
+Answer: TRUE
+Explanation: Tuples cannot be modified after creation, while lists can be appended, cleared, or altered.
+
+3. Which of the following are valid NoSQL database families? (Select all that apply)
+(a) Document stores
+(b) Key-value stores
+(c) Relational SQL tables
+(d) Graph databases
+Answer: A, B, D
+Explanation: Document stores (e.g. MongoDB), Key-value stores (e.g. Redis), and Graph databases (e.g. Neo4j) are primary NoSQL architectures.
+
+4. In computer networking, the default port for secure HTTPS communication is _____.
+Answer: 443
+Explanation: Standard unencrypted HTTP uses port 80, whereas HTTPS secured by TLS/SSL uses TCP port 443.
+
+5. Calculate the total number of edges in a complete undirected graph with 6 vertices.
+Answer: 15
+Explanation: The formula for edges in a complete graph K_n is n*(n-1)/2. For n=6, 6*5/2 = 15 edges.
+
+6. Assertion (A): Indexes speed up SELECT queries on large tables.
+Reason (R): Indexes eliminate the need for B-trees and table storage.
+A. Both A and R are true and R is the correct explanation of A.
+B. Both A and R are true but R is not the correct explanation of A.
+C. A is true but R is false.
+D. A is false but R is true.
+Answer: C
+Explanation: Indexes accelerate lookups by maintaining specialized search data structures like B-trees, but they do NOT eliminate table storage; in fact, they consume additional storage.

@@ -1,0 +1,22 @@
+{
+  "name": "quizforge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "QuizForge AI Assessment & Learning Platform",
+  "type": "module",
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"cyan.bold,magenta.bold\" --kill-others-on-fail \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "node run-backend.js",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "start": "npm run dev",
+    "build": "npm --prefix frontend install && npm --prefix frontend run build",
+    "test:backend": "backend\\venv\\Scripts\\python.exe -m pytest",
+    "typecheck:frontend": "npm run --prefix frontend typecheck"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

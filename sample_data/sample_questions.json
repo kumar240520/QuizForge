@@ -1,0 +1,264 @@
+[
+  {
+    "question_text": "Which design pattern ensures a class has only one instance and provides a global point of access to it?",
+    "question_type": "single_choice",
+    "difficulty": "easy",
+    "section_name": "Software Architecture",
+    "options": [
+      {"id": "A", "text": "Factory Pattern"},
+      {"id": "B", "text": "Singleton Pattern"},
+      {"id": "C", "text": "Observer Pattern"},
+      {"id": "D", "text": "Adapter Pattern"}
+    ],
+    "correct_answer": ["B"],
+    "explanation": "The Singleton pattern restricts the instantiation of a class to one single instance and provides a global access point to it.",
+    "points": 1.0,
+    "negative_marks": 0.25,
+    "per_question_timer": 45
+  },
+  {
+    "question_text": "Which of the following sorting algorithms exhibit O(n log n) worst-case time complexity? (Select all that apply)",
+    "question_type": "multiple_choice",
+    "difficulty": "medium",
+    "section_name": "Algorithms & Complexity",
+    "options": [
+      {"id": "A", "text": "Merge Sort"},
+      {"id": "B", "text": "Heap Sort"},
+      {"id": "C", "text": "Quicksort"},
+      {"id": "D", "text": "Bubble Sort"}
+    ],
+    "correct_answer": ["A", "B"],
+    "explanation": "Merge Sort and Heap Sort guarantee O(n log n) time complexity even in the worst case. Quicksort worst case is O(n^2), and Bubble Sort worst case is O(n^2).",
+    "points": 2.0,
+    "negative_marks": 0.5,
+    "per_question_timer": 60
+  },
+  {
+    "question_text": "In Python, a tuple containing only immutable elements can be used as a dictionary key, provided those elements are hashable.",
+    "question_type": "true_false",
+    "difficulty": "easy",
+    "section_name": "Python Fundamentals",
+    "options": [
+      {"id": "TRUE", "text": "True"},
+      {"id": "FALSE", "text": "False"}
+    ],
+    "correct_answer": ["TRUE"],
+    "explanation": "Dictionary keys in Python must be hashable. Tuples of immutable objects have a deterministic hash and are valid dictionary keys.",
+    "points": 1.0,
+    "negative_marks": 0.0,
+    "per_question_timer": 30
+  },
+  {
+    "question_text": "In Object-Oriented Programming, ________ allows a subclass to provide a specific implementation of a method that is already provided by its parent class.",
+    "question_type": "fill_in_the_blank",
+    "difficulty": "easy",
+    "section_name": "OOP Principles",
+    "options": [],
+    "correct_answer": ["method overriding"],
+    "accepted_answers": ["overriding", "method override", "dynamic polymorphism"],
+    "explanation": "Method overriding allows a subclass to provide a specific implementation of a method already defined in its superclass, resolved at runtime.",
+    "points": 1.0,
+    "negative_marks": 0.0,
+    "per_question_timer": 45
+  },
+  {
+    "question_text": "What is the standard HTTP status code returned by a server when a requested resource is created successfully?",
+    "question_type": "short_answer",
+    "difficulty": "easy",
+    "section_name": "Web Protocols & Networking",
+    "options": [],
+    "correct_answer": ["201"],
+    "accepted_answers": ["201 Created", "HTTP 201", "Created (201)"],
+    "explanation": "HTTP status code 201 Created signifies that the request has succeeded and led to the creation of one or more new resources.",
+    "points": 1.0,
+    "negative_marks": 0.0,
+    "per_question_timer": 40
+  },
+  {
+    "question_text": "Calculate the total number of edges in a complete undirected graph with 8 vertices (K_8).",
+    "question_type": "numerical",
+    "difficulty": "medium",
+    "section_name": "Discrete Mathematics & Graph Theory",
+    "options": [],
+    "correct_answer": 28,
+    "numerical_tolerance": 0.0,
+    "explanation": "In a complete graph K_n, the number of edges is given by the formula n * (n - 1) / 2. For n = 8: 8 * 7 / 2 = 28 edges.",
+    "points": 2.0,
+    "negative_marks": 0.5,
+    "per_question_timer": 60
+  },
+  {
+    "question_text": "Match each transport or network layer protocol with its primary operating characteristic:",
+    "question_type": "match_the_following",
+    "difficulty": "medium",
+    "section_name": "Computer Networks",
+    "options": [
+      {"id": "1", "text": "TCP (Transmission Control Protocol)"},
+      {"id": "2", "text": "UDP (User Datagram Protocol)"},
+      {"id": "3", "text": "ICMP (Internet Control Message Protocol)"},
+      {"id": "4", "text": "ARP (Address Resolution Protocol)"}
+    ],
+    "metadata_extra": {
+      "match_targets": [
+        {"id": "A", "text": "Connection-oriented with reliable byte-stream and flow control"},
+        {"id": "B", "text": "Connectionless lightweight datagram service with minimal overhead"},
+        {"id": "C", "text": "Network layer diagnostics, error reporting, and ping utilities"},
+        {"id": "D", "text": "Maps IP network addresses to physical MAC hardware addresses"}
+      ]
+    },
+    "correct_answer": {
+      "1": "A",
+      "2": "B",
+      "3": "C",
+      "4": "D"
+    },
+    "explanation": "TCP is connection-oriented and reliable; UDP is lightweight and connectionless; ICMP handles diagnostic reporting; ARP resolves IP addresses to physical MAC addresses.",
+    "points": 4.0,
+    "negative_marks": 1.0,
+    "per_question_timer": 90
+  },
+  {
+    "question_text": "Arrange the standard stages of the Java compilation and execution lifecycle in chronological order from earliest to latest:",
+    "question_type": "arrange_in_order",
+    "difficulty": "medium",
+    "section_name": "Java Architecture",
+    "options": [
+      {"id": "STEP_1", "text": "Write source code files (.java)"},
+      {"id": "STEP_2", "text": "Compile into platform-independent bytecode (.class) via javac"},
+      {"id": "STEP_3", "text": "Class Loader loads bytecode into JVM memory"},
+      {"id": "STEP_4", "text": "Bytecode Verifier checks for security and structure violations"},
+      {"id": "STEP_5", "text": "Execution Engine (JIT Compiler / Interpreter) executes machine code"}
+    ],
+    "correct_answer": [
+      "STEP_1",
+      "STEP_2",
+      "STEP_3",
+      "STEP_4",
+      "STEP_5"
+    ],
+    "explanation": "Java workflow executes sequentially: Source code (.java) -> javac compilation -> bytecode (.class) -> ClassLoader -> Bytecode Verifier -> JIT Compiler Execution.",
+    "points": 3.0,
+    "negative_marks": 0.5,
+    "per_question_timer": 75
+  },
+  {
+    "question_text": "Given below are two statements, one labeled as Assertion (A) and the other labeled as Reason (R):\n\nAssertion (A): Hash table lookups have an average-case time complexity of O(1), but can degrade to O(n) in the worst case.\nReason (R): When hash collisions occur frequently and all keys map to the same bucket in separate chaining, lookup traverses a linked list of length n.\n\nChoose the correct option:",
+    "question_type": "assertion_reasoning",
+    "difficulty": "medium",
+    "section_name": "Data Structures",
+    "options": [
+      {"id": "A", "text": "Both (A) and (R) are true, and (R) is the correct explanation of (A)."},
+      {"id": "B", "text": "Both (A) and (R) are true, but (R) is NOT the correct explanation of (A)."},
+      {"id": "C", "text": "(A) is true, but (R) is false."},
+      {"id": "D", "text": "(A) is false, but (R) is true."}
+    ],
+    "correct_answer": ["A"],
+    "explanation": "Both statements are correct. When all n keys collide into a single bucket under separate chaining, searching requires linear traversal of a linked list of size n, producing O(n) worst-case time.",
+    "points": 2.0,
+    "negative_marks": 0.5,
+    "per_question_timer": 60
+  },
+  {
+    "question_text": "What is the exact console output produced by the following Python program?",
+    "question_type": "code_output",
+    "difficulty": "medium",
+    "section_name": "Python Internals",
+    "metadata_extra": {
+      "language": "python",
+      "code_snippet": "nums = [0, 1, 2, 3, 4, 5]\nresult = [x for x in nums if x % 2 == 0]\nprint(result)"
+    },
+    "options": [
+      {"id": "A", "text": "[0, 2, 4]"},
+      {"id": "B", "text": "[0, 1, 2, 3, 4]"},
+      {"id": "C", "text": "[2, 4, 6]"},
+      {"id": "D", "text": "[]"}
+    ],
+    "correct_answer": ["A"],
+    "accepted_answers": ["[0, 2, 4]"],
+    "explanation": "The list comprehension evaluates each element x in [0, 1, 2, 3, 4, 5] and filters only even numbers (0 % 2 == 0, 2 % 2 == 0, 4 % 2 == 0), outputting [0, 2, 4].",
+    "points": 1.5,
+    "negative_marks": 0.25,
+    "per_question_timer": 45
+  },
+  {
+    "question_text": "The following Python function intends to calculate the average of a list of numbers, but raises an unhandled ZeroDivisionError when given an empty list. Identify the correct fix.",
+    "question_type": "code_debug",
+    "difficulty": "medium",
+    "section_name": "Debugging & Error Handling",
+    "metadata_extra": {
+      "language": "python",
+      "code_snippet": "def calculate_average(numbers):\n    # Bug: crashes with ZeroDivisionError if numbers is empty\n    return sum(numbers) / len(numbers)"
+    },
+    "options": [
+      {"id": "A", "text": "Check if not numbers and return 0.0 before dividing by len(numbers)"},
+      {"id": "B", "text": "Use len(numbers) - 1 in the division formula"},
+      {"id": "C", "text": "Replace sum(numbers) with reduce(numbers)"},
+      {"id": "D", "text": "Convert numbers into a set before computing length"}
+    ],
+    "correct_answer": ["A"],
+    "explanation": "If `numbers` is empty, len(numbers) is 0, raising ZeroDivisionError. Guarding with `if not numbers: return 0.0` safely handles empty sequences.",
+    "points": 2.0,
+    "negative_marks": 0.5,
+    "per_question_timer": 60
+  },
+  {
+    "question_text": "Given an array of integers nums and an integer target, write a function two_sum(nums, target) that returns the indices of the two numbers such that they add up to target. You may assume that each input would have exactly one solution, and you may not use the same element twice. Return the answer in any order.",
+    "question_type": "coding",
+    "difficulty": "medium",
+    "section_name": "Algorithms & Coding",
+    "options": [],
+    "metadata_extra": {
+      "language": "python",
+      "starter_code": "def two_sum(nums: list[int], target: int) -> list[int]:\n    # Write your solution here\n    pass\n",
+      "constraints": [
+        "2 <= len(nums) <= 10^4",
+        "-10^9 <= nums[i] <= 10^9",
+        "-10^9 <= target <= 10^9",
+        "Only one valid answer exists."
+      ],
+      "test_cases": [
+        {
+          "input": "nums = [2, 7, 11, 15], target = 9",
+          "expected_output": "[0, 1]"
+        },
+        {
+          "input": "nums = [3, 2, 4], target = 6",
+          "expected_output": "[1, 2]"
+        },
+        {
+          "input": "nums = [3, 3], target = 6",
+          "expected_output": "[0, 1]"
+        }
+      ]
+    },
+    "correct_answer": "def two_sum(nums: list[int], target: int) -> list[int]:\n    seen = {}\n    for i, num in enumerate(nums):\n        complement = target - num\n        if complement in seen:\n            return [seen[complement], i]\n        seen[num] = i\n    return []",
+    "explanation": "We iterate through the array once while storing each number and its index in a hash map. For each element, checking if the complement exists takes O(1) time, yielding O(n) total time complexity and O(n) space.",
+    "points": 5.0,
+    "negative_marks": 0.0,
+    "per_question_timer": 300
+  },
+  {
+    "question_text": "Write a SQL query to retrieve the names and salaries of the top 3 highest-earning employees from an 'employees' table with columns (id, name, salary, department_id), ordered by salary descending.",
+    "question_type": "code_writing",
+    "difficulty": "medium",
+    "section_name": "Databases & SQL",
+    "options": [],
+    "correct_answer": "SELECT name, salary FROM employees ORDER BY salary DESC LIMIT 3;",
+    "explanation": "SELECT name, salary retrieves the required columns, ORDER BY salary DESC sorts records from highest to lowest salary, and LIMIT 3 restricts output to the top 3 records.",
+    "points": 3.0,
+    "negative_marks": 0.0,
+    "per_question_timer": 120
+  },
+  {
+    "question_text": "Explain the ACID properties of relational database management systems. Describe each property briefly and provide a concrete banking scenario illustrating what could go wrong if that property were violated.",
+    "question_type": "descriptive",
+    "difficulty": "hard",
+    "section_name": "Database Architecture",
+    "options": [],
+    "correct_answer": "A complete response covers Atomicity (all or nothing, e.g. debit without credit), Consistency (valid state transitions upholding integrity constraints), Isolation (concurrent transactions do not interfere, e.g. dirty reads), and Durability (committed data survives server crashes).",
+    "explanation": "Grading Rubric:\n- Atomicity (25%): Explains all-or-nothing execution with transaction commit/rollback example.\n- Consistency (25%): Explains adherence to schema constraints and non-negative account balances.\n- Isolation (25%): Explains concurrency control and avoidance of dirty/lost updates.\n- Durability (25%): Explains write-ahead logging (WAL) ensuring durability after server crash.",
+    "points": 5.0,
+    "negative_marks": 0.0,
+    "per_question_timer": 240
+  }
+]

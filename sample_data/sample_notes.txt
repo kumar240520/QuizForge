@@ -1,0 +1,16 @@
+# Distributed Systems Notes: CAP Theorem and Consensus
+
+The CAP theorem states that any distributed data store can only simultaneously provide at most two out of the following three guarantees:
+1. Consistency (C): Every read receives the most recent write or an error.
+2. Availability (A): Every non-failing node returns a non-error response for every request, without guarantee that it contains the most recent write.
+3. Partition Tolerance (P): The system continues to operate despite an arbitrary number of messages being dropped or delayed by the network between nodes.
+
+In practical real-world wide area networks, network partitions (P) are unavoidable due to fiber cuts, hardware failures, or network congestion. Therefore, system designers must choose between Consistency (CP) and Availability (AP) during network partitions.
+
+CP Systems (e.g. Apache ZooKeeper, Google Spanner, etcd):
+- When a partition occurs, nodes that cannot reach a quorum reject writes or delay reads to avoid stale or split-brain data.
+- They prioritize linearizability over availability.
+
+AP Systems (e.g. Apache Cassandra, Amazon DynamoDB in eventual consistency mode):
+- During network partitions, both sides of the partition remain open for reads and writes.
+- Nodes will eventually synchronize once connectivity is restored, resolving conflicts using vector clocks, CRDTs, or Last-Write-Wins (LWW).
