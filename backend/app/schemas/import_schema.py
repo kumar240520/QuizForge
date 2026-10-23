@@ -32,6 +32,7 @@ class TextImportRequest(BaseModel):
 
 class ImportJobResponse(BaseModel):
     id: int
+    user_id: Optional[int] = None
     source_type: str
     filename: Optional[str] = None
     total_detected: int

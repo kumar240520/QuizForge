@@ -3,6 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from backend.app.core.database import get_db
+from backend.app.core.security import get_current_user_optional
+from backend.app.models.user import User
 from backend.app.models.question import Question
 from backend.app.models.question_bank import QuestionBank
 from backend.app.schemas.question import QuestionCreate, QuestionUpdate, QuestionRead, QuestionBatchDelete
@@ -22,9 +24,15 @@ def list_questions(
     search: Optional[str] = None,
     skip: int = 0,
     limit: int = 500,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     query = db.query(Question)
+    if current_user:
+        query = query.filter(Question.user_id == current_user.id)
+    else:
+        query = query.filter(Question.user_id.is_(None))
+        
     if quiz_id:
         query = query.filter(Question.quiz_id == quiz_id)
     elif unassigned_only:
@@ -53,16 +61,34 @@ def list_questions(
     return query.order_by(Question.created_at.desc()).offset(skip).limit(limit).all()
 
 @router.post("", response_model=QuestionRead)
-def create_question(payload: QuestionCreate, db: Session = Depends(get_db)):
-    # If no bank_id, use default bank
+def create_question(
+    payload: QuestionCreate, 
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    # If no bank_id, use personal default bank
     bank_id = payload.bank_id
     if not bank_id:
-        default_bank = db.query(QuestionBank).filter(QuestionBank.is_default == True).first()
-        if default_bank:
-            bank_id = default_bank.id
+        bank_q = db.query(QuestionBank).filter(QuestionBank.is_default == True)
+        if current_user:
+            bank_q = bank_q.filter(QuestionBank.user_id == current_user.id)
+        default_bank = bank_q.first()
+        if not default_bank:
+            default_bank = QuestionBank(
+                title="Default Bank", 
+                is_default=True,
+                user_id=current_user.id if current_user else None
+            )
+            db.add(default_bank)
+            db.commit()
+            db.refresh(default_bank)
+        bank_id = default_bank.id
             
     q_data = payload.model_dump()
     q_data["bank_id"] = bank_id
+    if current_user:
+        q_data["user_id"] = current_user.id
+        
     # Format options as dicts for JSON column
     if "options" in q_data and q_data["options"]:
         q_data["options"] = [
@@ -77,17 +103,30 @@ def create_question(payload: QuestionCreate, db: Session = Depends(get_db)):
     return question
 
 @router.get("/{question_id}", response_model=QuestionRead)
-def get_question(question_id: int, db: Session = Depends(get_db)):
+def get_question(
+    question_id: int, 
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     question = db.query(Question).filter(Question.id == question_id).first()
     if not question:
         raise HTTPException(status_code=404, detail="Question not found")
+    if current_user and question.user_id and question.user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="You do not have permission to access this question.")
     return question
 
 @router.put("/{question_id}", response_model=QuestionRead)
-def update_question(question_id: int, payload: QuestionUpdate, db: Session = Depends(get_db)):
+def update_question(
+    question_id: int, 
+    payload: QuestionUpdate, 
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     question = db.query(Question).filter(Question.id == question_id).first()
     if not question:
         raise HTTPException(status_code=404, detail="Question not found")
+    if current_user and question.user_id and question.user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="You do not have permission to update this question.")
         
     update_data = payload.model_dump(exclude_unset=True)
     if "options" in update_data and update_data["options"] is not None:
@@ -105,17 +144,31 @@ def update_question(question_id: int, payload: QuestionUpdate, db: Session = Dep
     return question
 
 @router.post("/batch-delete")
-def batch_delete_questions(payload: QuestionBatchDelete, db: Session = Depends(get_db)):
+def batch_delete_questions(
+    payload: QuestionBatchDelete, 
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     if not payload.ids:
         return {"message": "No IDs provided", "deleted_count": 0}
-    # Delete revision items and session answers if needed
-    deleted_count = db.query(Question).filter(Question.id.in_(payload.ids)).delete(synchronize_session=False)
+        
+    query = db.query(Question).filter(Question.id.in_(payload.ids))
+    if current_user and current_user.role != "admin":
+        query = query.filter(Question.user_id == current_user.id)
+        
+    deleted_count = query.delete(synchronize_session=False)
     db.commit()
     return {"message": f"Successfully deleted {deleted_count} questions", "deleted_count": deleted_count}
 
 @router.delete("/clear-all")
-def clear_all_questions(bank_id: Optional[int] = None, db: Session = Depends(get_db)):
+def clear_all_questions(
+    bank_id: Optional[int] = None, 
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     query = db.query(Question)
+    if current_user and current_user.role != "admin":
+        query = query.filter(Question.user_id == current_user.id)
     if bank_id is not None:
         query = query.filter(Question.bank_id == bank_id)
     deleted_count = query.delete(synchronize_session=False)
@@ -123,21 +176,34 @@ def clear_all_questions(bank_id: Optional[int] = None, db: Session = Depends(get
     return {"message": f"Successfully cleared {deleted_count} questions", "deleted_count": deleted_count}
 
 @router.delete("/{question_id}")
-def delete_question(question_id: int, db: Session = Depends(get_db)):
+def delete_question(
+    question_id: int, 
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     question = db.query(Question).filter(Question.id == question_id).first()
     if not question:
         raise HTTPException(status_code=404, detail="Question not found")
+    if current_user and question.user_id and question.user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="You do not have permission to delete this question.")
     db.delete(question)
     db.commit()
     return {"message": "Question deleted successfully"}
 
 @router.post("/{question_id}/duplicate", response_model=QuestionRead)
-def duplicate_question(question_id: int, db: Session = Depends(get_db)):
+def duplicate_question(
+    question_id: int, 
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     orig = db.query(Question).filter(Question.id == question_id).first()
     if not orig:
         raise HTTPException(status_code=404, detail="Question not found")
+    if current_user and orig.user_id and orig.user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="You do not have permission to duplicate this question.")
         
     dup = Question(
+        user_id=current_user.id if current_user else orig.user_id,
         bank_id=orig.bank_id,
         subject_id=orig.subject_id,
         topic_id=orig.topic_id,
@@ -162,10 +228,16 @@ def duplicate_question(question_id: int, db: Session = Depends(get_db)):
     return dup
 
 @router.post("/{question_id}/toggle-favorite", response_model=QuestionRead)
-def toggle_favorite(question_id: int, db: Session = Depends(get_db)):
+def toggle_favorite(
+    question_id: int, 
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     question = db.query(Question).filter(Question.id == question_id).first()
     if not question:
         raise HTTPException(status_code=404, detail="Question not found")
+    if current_user and question.user_id and question.user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="You do not have permission to favorite this question.")
     question.is_favorite = not question.is_favorite
     db.commit()
     db.refresh(question)

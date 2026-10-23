@@ -163,3 +163,199 @@ def test_user_data_isolation(client, db_session):
     # Bob tries to directly access Alice's result ID -> 403 Forbidden!
     bob_view = client.get(f"/api/v1/results/{result_id}", headers={"Authorization": f"Bearer {bob_token}"})
     assert bob_view.status_code == 403
+
+def test_quiz_and_bank_and_question_isolation(client, db_session):
+    totp = generate_totp()
+    # Register Alice
+    u1 = client.post("/api/v1/auth/signup", json={
+        "username": "alice_quiz",
+        "email": "alice_quiz@example.com",
+        "password": "Password123!",
+        "admin_totp_code": totp,
+        "role": "candidate"
+    }).json()
+    alice_token = u1["access_token"]
+
+    # Register Bob
+    totp = generate_totp()
+    u2 = client.post("/api/v1/auth/signup", json={
+        "username": "bob_quiz",
+        "email": "bob_quiz@example.com",
+        "password": "Password123!",
+        "admin_totp_code": totp,
+        "role": "candidate"
+    }).json()
+    bob_token = u2["access_token"]
+
+    # 1. Alice creates a Quiz
+    qz_res = client.post("/api/v1/quizzes", json={
+        "title": "Alice Physics Exam",
+        "mode": "exam",
+        "timing_mode": "total_duration",
+        "duration_minutes": 20
+    }, headers={"Authorization": f"Bearer {alice_token}"})
+    assert qz_res.status_code == 200
+    alice_quiz_id = qz_res.json()["id"]
+
+    # 2. Alice creates a Question Bank
+    bank_res = client.post("/api/v1/banks", json={
+        "title": "Alice Physics Bank",
+        "description": "Mechanics and thermodynamics"
+    }, headers={"Authorization": f"Bearer {alice_token}"})
+    assert bank_res.status_code == 200
+    alice_bank_id = bank_res.json()["id"]
+
+    # 3. Alice creates a Question
+    q_res = client.post("/api/v1/questions", json={
+        "question_text": "What is acceleration?",
+        "question_type": "single_choice",
+        "bank_id": alice_bank_id,
+        "options": [{"id": "A", "text": "Rate of change of velocity"}, {"id": "B", "text": "Force"}],
+        "correct_answer": ["A"]
+    }, headers={"Authorization": f"Bearer {alice_token}"})
+    assert q_res.status_code == 200
+    alice_q_id = q_res.json()["id"]
+
+    # 4. Bob lists quizzes -> Alice's quiz must NOT appear!
+    bob_quizzes = client.get("/api/v1/quizzes", headers={"Authorization": f"Bearer {bob_token}"}).json()
+    assert all(q["id"] != alice_quiz_id for q in bob_quizzes)
+
+    # 5. Bob lists questions -> Alice's question must NOT appear!
+    bob_questions = client.get("/api/v1/questions", headers={"Authorization": f"Bearer {bob_token}"}).json()
+    assert all(q["id"] != alice_q_id for q in bob_questions)
+
+    # 6. Bob lists banks -> Alice's bank must NOT appear!
+    bob_banks = client.get("/api/v1/banks", headers={"Authorization": f"Bearer {bob_token}"}).json()
+    assert all(b["id"] != alice_bank_id for b in bob_banks)
+
+    # 7. Bob attempts unauthorized update on Alice's quiz -> 403 Forbidden!
+    hack_quiz = client.put(f"/api/v1/quizzes/{alice_quiz_id}", json={
+        "title": "Hacked Title"
+    }, headers={"Authorization": f"Bearer {bob_token}"})
+    assert hack_quiz.status_code == 403
+
+    # 8. Bob attempts unauthorized delete on Alice's quiz -> 403 Forbidden!
+    del_quiz = client.delete(f"/api/v1/quizzes/{alice_quiz_id}", headers={"Authorization": f"Bearer {bob_token}"})
+    assert del_quiz.status_code == 403
+
+    # 9. Bob attempts unauthorized delete on Alice's question -> 403 Forbidden!
+    del_q = client.delete(f"/api/v1/questions/{alice_q_id}", headers={"Authorization": f"Bearer {bob_token}"})
+    assert del_q.status_code == 403
+
+def test_gemini_api_key_isolation(client, db_session):
+    totp = generate_totp()
+    # Register Alice
+    u1 = client.post("/api/v1/auth/signup", json={
+        "username": "alice_ai",
+        "email": "alice_ai@example.com",
+        "password": "Password123!",
+        "admin_totp_code": totp,
+        "role": "candidate"
+    }).json()
+    alice_token = u1["access_token"]
+
+    # Register Bob
+    totp = generate_totp()
+    u2 = client.post("/api/v1/auth/signup", json={
+        "username": "bob_ai",
+        "email": "bob_ai@example.com",
+        "password": "Password123!",
+        "admin_totp_code": totp,
+        "role": "candidate"
+    }).json()
+    bob_token = u2["access_token"]
+
+    # 1. Alice sets her Gemini API Key
+    alice_save_key = client.post("/api/v1/settings/ai", json={
+        "api_key": "AIzaSyAliceSecretKey1234567890",
+        "model_name": "gemini-2.5-flash"
+    }, headers={"Authorization": f"Bearer {alice_token}"})
+    assert alice_save_key.status_code == 200
+
+    # Alice reads her AI settings -> Key configured
+    alice_ai = client.get("/api/v1/settings/ai", headers={"Authorization": f"Bearer {alice_token}"}).json()
+    assert alice_ai["is_key_configured"] is True
+    assert "AIzaSy" in alice_ai["masked_key"]
+
+    # 2. Bob reads AI settings -> MUST BE FALSE AND EMPTY! (No cross-user key leakage)
+    bob_ai = client.get("/api/v1/settings/ai", headers={"Authorization": f"Bearer {bob_token}"}).json()
+    assert bob_ai["is_key_configured"] is False
+    assert bob_ai["masked_key"] is None
+
+    # 3. Bob sets his own key
+    bob_save_key = client.post("/api/v1/settings/ai", json={
+        "api_key": "AIzaSyBobSecretKey9876543210",
+        "model_name": "gemini-2.5-pro"
+    }, headers={"Authorization": f"Bearer {bob_token}"})
+    assert bob_save_key.status_code == 200
+
+    # Bob reads his settings
+    bob_ai_new = client.get("/api/v1/settings/ai", headers={"Authorization": f"Bearer {bob_token}"}).json()
+    assert bob_ai_new["is_key_configured"] is True
+    assert bob_ai_new["model_name"] == "gemini-2.5-pro"
+
+    # Alice's key remains completely isolated and unchanged
+    alice_ai_still = client.get("/api/v1/settings/ai", headers={"Authorization": f"Bearer {alice_token}"}).json()
+    assert alice_ai_still["is_key_configured"] is True
+    assert alice_ai_still["model_name"] == "gemini-2.5-flash"
+
+def test_admin_user_directory_and_cascade_delete(client, db_session):
+    totp = generate_totp()
+    # 1. Register an Admin
+    admin_res = client.post("/api/v1/auth/signup", json={
+        "username": "superadmin",
+        "email": "superadmin@example.com",
+        "password": "Password123!",
+        "admin_totp_code": totp,
+        "role": "admin"
+    }).json()
+    admin_token = admin_res["access_token"]
+    admin_id = admin_res["user"]["id"]
+
+    # 2. Register Candidate Charlie
+    totp = generate_totp()
+    charlie_res = client.post("/api/v1/auth/signup", json={
+        "username": "charlie",
+        "email": "charlie@example.com",
+        "password": "Password123!",
+        "admin_totp_code": totp,
+        "role": "candidate"
+    }).json()
+    charlie_token = charlie_res["access_token"]
+    charlie_id = charlie_res["user"]["id"]
+
+    # Charlie creates a quiz and question
+    client.post("/api/v1/quizzes", json={"title": "Charlie Chemistry Quiz"}, headers={"Authorization": f"Bearer {charlie_token}"})
+    client.post("/api/v1/questions", json={
+        "question_text": "What is H2O?",
+        "question_type": "single_choice",
+        "options": [{"id": "A", "text": "Water"}],
+        "correct_answer": ["A"]
+    }, headers={"Authorization": f"Bearer {charlie_token}"})
+
+    # 3. Charlie attempts to access /admin/users -> 403 Forbidden!
+    c_admin = client.get("/api/v1/admin/users", headers={"Authorization": f"Bearer {charlie_token}"})
+    assert c_admin.status_code == 403
+
+    # 4. Admin accesses /admin/users -> succeeds and shows Charlie with his resources
+    admin_list = client.get("/api/v1/admin/users", headers={"Authorization": f"Bearer {admin_token}"})
+    assert admin_list.status_code == 200
+    users = admin_list.json()
+    charlie_entry = next((u for u in users if u["id"] == charlie_id), None)
+    assert charlie_entry is not None
+    assert charlie_entry["username"] == "charlie"
+    assert charlie_entry["quizzes_count"] >= 1
+    assert charlie_entry["questions_count"] >= 1
+
+    # 5. Admin tries to delete themselves -> 400 Bad Request
+    self_del = client.delete(f"/api/v1/admin/users/{admin_id}", headers={"Authorization": f"Bearer {admin_token}"})
+    assert self_del.status_code == 400
+
+    # 6. Admin deletes Charlie -> 200 OK
+    del_charlie = client.delete(f"/api/v1/admin/users/{charlie_id}", headers={"Authorization": f"Bearer {admin_token}"})
+    assert del_charlie.status_code == 200
+
+    # 7. Charlie is gone from the database, along with all his quizzes and questions
+    assert db_session.query(User).filter(User.id == charlie_id).first() is None
+    assert db_session.query(Quiz).filter(Quiz.user_id == charlie_id).count() == 0
+    assert db_session.query(Question).filter(Question.user_id == charlie_id).count() == 0

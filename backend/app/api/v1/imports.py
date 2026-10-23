@@ -1,10 +1,12 @@
 import json
 import re
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 from backend.app.core.database import get_db
+from backend.app.core.security import get_current_user_optional
+from backend.app.models.user import User
 from backend.app.models.import_job import ImportJob
 from backend.app.models.question import Question
 from backend.app.models.question_bank import QuestionBank, Subject, Topic
@@ -17,7 +19,11 @@ from backend.app.services.parsing_service import ParsingService
 router = APIRouter(prefix="/imports", tags=["Imports"])
 
 @router.post("/pdf", response_model=ImportJobResponse)
-async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def upload_pdf(
+    file: UploadFile = File(...), 
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported.")
         
@@ -41,6 +47,7 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
             issues_list.append({"question_index": idx, "temp_id": item.temp_id, "issues": item.issues})
             
     job = ImportJob(
+        user_id=current_user.id if current_user else None,
         source_type="pdf",
         filename=file.filename,
         raw_content=full_text[:50000], # store preview
@@ -57,7 +64,11 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
     return job
 
 @router.post("/text", response_model=ImportJobResponse)
-def import_pasted_text(payload: TextImportRequest, db: Session = Depends(get_db)):
+def import_pasted_text(
+    payload: TextImportRequest, 
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     parsed_items = ParsingService.parse_text_questions(payload.content, source_ref_prefix="Pasted Text")
     
     issues_list = []
@@ -66,6 +77,7 @@ def import_pasted_text(payload: TextImportRequest, db: Session = Depends(get_db)
             issues_list.append({"question_index": idx, "temp_id": item.temp_id, "issues": item.issues})
             
     job = ImportJob(
+        user_id=current_user.id if current_user else None,
         source_type="text",
         filename="Pasted_Questions.txt",
         raw_content=payload.content[:50000],
@@ -82,7 +94,11 @@ def import_pasted_text(payload: TextImportRequest, db: Session = Depends(get_db)
     return job
 
 @router.post("/json", response_model=ImportJobResponse)
-def import_json(raw_json: List[dict], db: Session = Depends(get_db)):
+def import_json(
+    raw_json: List[dict], 
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     parsed_items: List[ParsedQuestionItem] = []
     issues_list = []
     
@@ -161,6 +177,7 @@ def import_json(raw_json: List[dict], db: Session = Depends(get_db)):
             issues_list.append({"question_index": idx - 1, "temp_id": parsed_item.temp_id, "issues": issues})
             
     job = ImportJob(
+        user_id=current_user.id if current_user else None,
         source_type="json",
         filename="structured_import.json",
         raw_content=json.dumps(raw_json)[:50000],
@@ -187,7 +204,8 @@ def get_import_job(job_id: int, db: Session = Depends(get_db)):
 def approve_and_commit_import(
     job_id: int, 
     payload: ApproveQuestionsRequest, 
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     job = db.query(ImportJob).filter(ImportJob.id == job_id).first()
     if not job:
@@ -201,14 +219,22 @@ def approve_and_commit_import(
     # Get or create target bank
     bank_id = payload.bank_id
     if not bank_id and not payload.quiz_id:
-        default_bank = db.query(QuestionBank).filter(QuestionBank.is_default == True).first()
+        bank_q = db.query(QuestionBank).filter(QuestionBank.is_default == True)
+        if current_user:
+            bank_q = bank_q.filter(QuestionBank.user_id == current_user.id)
+        default_bank = bank_q.first()
         if not default_bank:
-            default_bank = QuestionBank(title="Assessment Questions Bank", is_default=True)
+            default_bank = QuestionBank(
+                title="Assessment Questions Bank", 
+                is_default=True,
+                user_id=current_user.id if current_user else None
+            )
             db.add(default_bank)
             db.commit()
             db.refresh(default_bank)
         bank_id = default_bank.id
 
+    owner_user_id = current_user.id if current_user else (job.user_id if job else None)
     created_questions = []
     new_qids = []
     sections_seen = set()
@@ -232,6 +258,7 @@ def approve_and_commit_import(
         ]
         
         q = Question(
+            user_id=owner_user_id,
             bank_id=bank_id,
             quiz_id=payload.quiz_id,
             section_name=sec,

@@ -5,6 +5,7 @@ from backend.app.models.base import BaseModel
 class Question(BaseModel):
     __tablename__ = "questions"
     
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     bank_id = Column(Integer, ForeignKey("question_banks.id", ondelete="SET NULL"), nullable=True)
     quiz_id = Column(Integer, ForeignKey("quizzes.id", ondelete="CASCADE"), nullable=True, index=True)
     subject_id = Column(Integer, ForeignKey("subjects.id", ondelete="SET NULL"), nullable=True)
@@ -57,3 +58,4 @@ class Question(BaseModel):
     subject = relationship("Subject", back_populates="questions")
     topic = relationship("Topic", back_populates="questions")
     revision_items = relationship("RevisionItem", back_populates="question", cascade="all, delete-orphan")
+    user = relationship("User", backref="questions")

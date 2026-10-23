@@ -41,6 +41,8 @@ export const authService = {
     }
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    localStorage.removeItem('quizforge_user_gemini_key');
+    localStorage.removeItem('quizforge_ai_key');
     window.location.href = '/login';
   },
 
@@ -54,6 +56,10 @@ export const authService = {
   },
 
   login: async (credentials: { email_or_username: string; password: string }): Promise<TokenResponse> => {
+    // Clear any previous user's cached keys
+    localStorage.removeItem('quizforge_user_gemini_key');
+    localStorage.removeItem('quizforge_ai_key');
+
     const res = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

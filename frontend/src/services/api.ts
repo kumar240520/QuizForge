@@ -3,7 +3,8 @@ import {
   SessionStatusResponse, QuizResult, QuizResultListItem,
   ParsedQuestionItem, ImportJob, RevisionItem,
   DashboardSummary, PerformanceAnalytics, AISettings,
-  AppearanceSettings, AppPreferences, RunCodeResponse
+  AppearanceSettings, AppPreferences, RunCodeResponse,
+  AdminUser
 } from '../types';
 
 export const API_BASE = '/api/v1';
@@ -331,4 +332,9 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ confirmation })
     }).then(r => handleResponse<{ message: string }>(r)),
+
+  // Admin User Directory
+  getAdminUsers: () => authFetch(`${API_BASE}/admin/users`).then(r => handleResponse<AdminUser[]>(r)),
+  deleteAdminUser: (userId: number) =>
+    authFetch(`${API_BASE}/admin/users/${userId}`, { method: 'DELETE' }).then(r => handleResponse<{ message: string }>(r)),
 };

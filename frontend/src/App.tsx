@@ -27,6 +27,7 @@ import { DataManagementPage } from './pages/DataManagementPage';
 import { ApplicationPreferencesPage } from './pages/ApplicationPreferencesPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
+import { UserDirectoryPage } from './pages/admin/UserDirectoryPage';
 import { AuthGuard } from './components/auth/AuthGuard';
 
 export const App: React.FC = () => {
@@ -78,6 +79,9 @@ export const App: React.FC = () => {
             <Route path="/settings/appearance" element={<AppearanceSettingsPage />} />
             <Route path="/settings/data" element={<DataManagementPage />} />
             <Route path="/settings/preferences" element={<ApplicationPreferencesPage />} />
+
+            {/* Administration (Admin only) */}
+            <Route path="/admin/users" element={<AuthGuard requireAdmin><UserDirectoryPage /></AuthGuard>} />
 
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />

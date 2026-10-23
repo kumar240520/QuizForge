@@ -7,6 +7,7 @@ class QuestionOptionSchema(BaseModel):
     text: str
 
 class QuestionBase(BaseModel):
+    user_id: Optional[int] = None
     question_text: str = Field(..., min_length=3)
     question_type: str = Field(default="single_choice")
     difficulty: str = Field(default="medium")
@@ -90,6 +91,7 @@ class QuestionBatchDelete(BaseModel):
     ids: List[int]
 
 class QuestionBankBase(BaseModel):
+    user_id: Optional[int] = None
     title: str
     description: Optional[str] = None
     is_default: bool = False

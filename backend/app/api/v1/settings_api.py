@@ -31,14 +31,12 @@ def get_ai_settings(
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
-    user_key = current_user.gemini_api_key if (current_user and current_user.gemini_api_key) else ""
-    key_setting = db.query(SystemSetting).filter(SystemSetting.key == "gemini_api_key").first()
-    model_setting = db.query(SystemSetting).filter(SystemSetting.key == "gemini_model").first()
-    
-    system_key = json.loads(key_setting.value_json) if key_setting else ""
-    raw_key = user_key or system_key or (settings.GEMINI_API_KEY.strip() if settings.GEMINI_API_KEY else "")
-    
-    model_name = json.loads(model_setting.value_json) if model_setting else (settings.GEMINI_MODEL or "gemini-3.5-flash-lite")
+    if current_user:
+        raw_key = (current_user.gemini_api_key or "").strip()
+        model_name = current_user.gemini_model or "gemini-2.5-flash"
+    else:
+        raw_key = ""
+        model_name = "gemini-2.5-flash"
     
     return AISettingsResponse(
         is_key_configured=bool(raw_key),
@@ -53,37 +51,22 @@ def update_ai_settings(
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required to update AI settings")
+        
     if payload.api_key is not None:
         cleaned_key = payload.api_key.strip()
-        if cleaned_key == "":
-            # Clear / Remove key
-            if current_user:
-                current_user.gemini_api_key = None
-                db.add(current_user)
-            key_setting = db.query(SystemSetting).filter(SystemSetting.key == "gemini_api_key").first()
-            if key_setting:
-                db.delete(key_setting)
-        else:
-            if current_user:
-                current_user.gemini_api_key = cleaned_key
-                db.add(current_user)
-            key_setting = db.query(SystemSetting).filter(SystemSetting.key == "gemini_api_key").first()
-            if not key_setting:
-                key_setting = SystemSetting(key="gemini_api_key", value_json=json.dumps(cleaned_key), is_encrypted=True)
-                db.add(key_setting)
-            else:
-                key_setting.value_json = json.dumps(cleaned_key)
+        current_user.gemini_api_key = cleaned_key if cleaned_key else None
+        db.add(current_user)
             
     if payload.model_name is not None:
-        model_setting = db.query(SystemSetting).filter(SystemSetting.key == "gemini_model").first()
-        if not model_setting:
-            model_setting = SystemSetting(key="gemini_model", value_json=json.dumps(payload.model_name.strip()))
-            db.add(model_setting)
-        else:
-            model_setting.value_json = json.dumps(payload.model_name.strip())
+        current_user.gemini_model = payload.model_name.strip()
+        db.add(current_user)
             
+    # Purge any legacy shared keys in SystemSetting to ensure zero cross-account leakage
+    db.query(SystemSetting).filter(SystemSetting.key.in_(["gemini_api_key"])).delete(synchronize_session=False)
     db.commit()
-    return {"message": "AI settings updated successfully"}
+    return {"message": "AI settings updated successfully for your account"}
 
 @router.post("/ai/test", response_model=TestConnectionResponse)
 def test_ai_connection(
@@ -91,18 +74,15 @@ def test_ai_connection(
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
-    target_key = payload.api_key
-    if not target_key or not target_key.strip():
-        if current_user and current_user.gemini_api_key:
-            target_key = current_user.gemini_api_key
-        else:
-            key_setting = db.query(SystemSetting).filter(SystemSetting.key == "gemini_api_key").first()
-            if key_setting:
-                target_key = json.loads(key_setting.value_json)
-            elif settings.GEMINI_API_KEY:
-                target_key = settings.GEMINI_API_KEY
-            
-    return GeminiClient.test_connection(api_key=target_key, model_name=payload.model_name)
+    target_key = payload.api_key.strip() if payload.api_key and payload.api_key.strip() else ""
+    if not target_key and current_user and current_user.gemini_api_key:
+        target_key = current_user.gemini_api_key.strip()
+        
+    if not target_key:
+        raise HTTPException(status_code=400, detail="Gemini API key is required. Please provide a key to test.")
+        
+    target_model = payload.model_name or (current_user.gemini_model if current_user else None) or "gemini-2.5-flash"
+    return GeminiClient.test_connection(api_key=target_key, model_name=target_model)
 
 @router.get("/appearance", response_model=AppearanceSettings)
 def get_appearance(db: Session = Depends(get_db)):

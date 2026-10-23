@@ -5,12 +5,14 @@ from backend.app.models.base import BaseModel
 class QuestionBank(BaseModel):
     __tablename__ = "question_banks"
     
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     title = Column(String(200), nullable=False)
     description = Column(Text, nullable=True)
     is_default = Column(Boolean, default=False, nullable=False)
     
     subjects = relationship("Subject", back_populates="bank", cascade="all, delete-orphan")
     questions = relationship("Question", back_populates="bank", cascade="all, delete-orphan")
+    user = relationship("User", backref="question_banks")
 
 class Subject(BaseModel):
     __tablename__ = "subjects"

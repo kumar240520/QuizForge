@@ -1,7 +1,9 @@
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from backend.app.core.database import get_db
+from backend.app.core.security import get_current_user_optional
+from backend.app.models.user import User
 from backend.app.models.quiz import Quiz
 from backend.app.models.question import Question
 from backend.app.schemas.quiz_schema import QuizCreate, QuizUpdate, QuizRead
@@ -10,8 +12,16 @@ from backend.app.schemas.question import QuestionRead, QuestionCreate
 router = APIRouter(prefix="/quizzes", tags=["Quizzes"])
 
 @router.get("", response_model=List[QuizRead])
-def list_quizzes(db: Session = Depends(get_db)):
-    quizzes = db.query(Quiz).order_by(Quiz.created_at.desc()).all()
+def list_quizzes(
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    query = db.query(Quiz)
+    if current_user:
+        query = query.filter(Quiz.user_id == current_user.id)
+    else:
+        query = query.filter(Quiz.user_id.is_(None))
+    quizzes = query.order_by(Quiz.created_at.desc()).all()
     results = []
     for q in quizzes:
         item = QuizRead.model_validate(q)
@@ -20,15 +30,24 @@ def list_quizzes(db: Session = Depends(get_db)):
     return results
 
 @router.post("", response_model=QuizRead)
-def create_quiz(payload: QuizCreate, db: Session = Depends(get_db)):
+def create_quiz(
+    payload: QuizCreate, 
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     quiz_data = payload.model_dump()
+    if current_user:
+        quiz_data["user_id"] = current_user.id
     quiz = Quiz(**quiz_data)
     db.add(quiz)
     db.commit()
     db.refresh(quiz)
     
     if quiz.question_ids:
-        db.query(Question).filter(Question.id.in_(quiz.question_ids)).update({"quiz_id": quiz.id}, synchronize_session=False)
+        db.query(Question).filter(Question.id.in_(quiz.question_ids)).update(
+            {"quiz_id": quiz.id, "user_id": quiz.user_id}, 
+            synchronize_session=False
+        )
         db.commit()
     
     item = QuizRead.model_validate(quiz)
@@ -45,10 +64,18 @@ def get_quiz(quiz_id: int, db: Session = Depends(get_db)):
     return item
 
 @router.put("/{quiz_id}", response_model=QuizRead)
-def update_quiz(quiz_id: int, payload: QuizUpdate, db: Session = Depends(get_db)):
+def update_quiz(
+    quiz_id: int, 
+    payload: QuizUpdate, 
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     quiz = db.query(Quiz).filter(Quiz.id == quiz_id).first()
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
+        
+    if current_user and quiz.user_id and quiz.user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="You do not have permission to update this assessment.")
         
     for k, v in payload.model_dump(exclude_unset=True).items():
         setattr(quiz, k, v)
@@ -60,10 +87,17 @@ def update_quiz(quiz_id: int, payload: QuizUpdate, db: Session = Depends(get_db)
     return item
 
 @router.delete("/{quiz_id}")
-def delete_quiz(quiz_id: int, db: Session = Depends(get_db)):
+def delete_quiz(
+    quiz_id: int, 
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     quiz = db.query(Quiz).filter(Quiz.id == quiz_id).first()
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
+        
+    if current_user and quiz.user_id and quiz.user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="You do not have permission to delete this assessment.")
     
     # Cascade delete all questions belonging to this quiz's dedicated question bank
     if quiz.question_ids:
@@ -93,13 +127,19 @@ def get_quiz_questions(quiz_id: int, db: Session = Depends(get_db)):
     return questions
 
 @router.post("/{quiz_id}/questions", response_model=QuestionRead)
-def add_question_to_quiz(quiz_id: int, payload: QuestionCreate, db: Session = Depends(get_db)):
+def add_question_to_quiz(
+    quiz_id: int, 
+    payload: QuestionCreate, 
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     quiz = db.query(Quiz).filter(Quiz.id == quiz_id).first()
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
         
     q_data = payload.model_dump()
     q_data["quiz_id"] = quiz_id
+    q_data["user_id"] = quiz.user_id or (current_user.id if current_user else None)
     if "options" in q_data and q_data["options"]:
         q_data["options"] = [
             (opt if isinstance(opt, dict) else opt.model_dump())

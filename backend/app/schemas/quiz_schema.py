@@ -3,6 +3,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict
 
 class QuizBase(BaseModel):
+    user_id: Optional[int] = None
     title: str = Field(..., min_length=3)
     description: Optional[str] = None
     mode: str = "exam" # practice, exam, revision

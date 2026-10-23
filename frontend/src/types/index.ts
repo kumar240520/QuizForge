@@ -361,3 +361,20 @@ export interface TOTPSetupResponse {
   qr_code_base64: string;
   instructions: string;
 }
+
+export interface AdminUser {
+  id: number;
+  username: string;
+  email: string;
+  full_name?: string | null;
+  role: 'admin' | 'candidate';
+  is_active: boolean;
+  is_gemini_configured: boolean;
+  masked_gemini_key?: string | null;
+  created_at: string;
+  last_login_at?: string | null;
+  quizzes_count: number;
+  questions_count: number;
+  banks_count: number;
+  attempts_count: number;
+}

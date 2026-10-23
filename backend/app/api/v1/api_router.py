@@ -11,10 +11,12 @@ from backend.app.api.v1.results import router as results_router
 from backend.app.api.v1.revision import router as revision_router
 from backend.app.api.v1.analytics import router as analytics_router
 from backend.app.api.v1.auth import router as auth_router
+from backend.app.api.v1.admin_users import router as admin_users_router
 
 api_v1_router = APIRouter()
 
 api_v1_router.include_router(auth_router)
+api_v1_router.include_router(admin_users_router)
 api_v1_router.include_router(health_router)
 api_v1_router.include_router(settings_router)
 api_v1_router.include_router(banks_router)

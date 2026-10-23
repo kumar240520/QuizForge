@@ -1,10 +1,11 @@
-from sqlalchemy import Column, String, Text, Boolean, Integer, Float, JSON
+from sqlalchemy import Column, String, Text, Boolean, Integer, Float, JSON, ForeignKey
 from sqlalchemy.orm import relationship
 from backend.app.models.base import BaseModel
 
 class Quiz(BaseModel):
     __tablename__ = "quizzes"
     
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     
@@ -40,3 +41,4 @@ class Quiz(BaseModel):
     questions = relationship("Question", backref="quiz", cascade="all, delete-orphan", foreign_keys="Question.quiz_id")
     sessions = relationship("QuizSession", back_populates="quiz", cascade="all, delete-orphan")
     results = relationship("QuizResult", back_populates="quiz", cascade="all, delete-orphan")
+    user = relationship("User", backref="quizzes")

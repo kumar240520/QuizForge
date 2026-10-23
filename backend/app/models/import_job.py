@@ -1,9 +1,11 @@
-from sqlalchemy import Column, String, Text, Integer, JSON
+from sqlalchemy import Column, String, Text, Integer, JSON, ForeignKey
+from sqlalchemy.orm import relationship
 from backend.app.models.base import BaseModel
 
 class ImportJob(BaseModel):
     __tablename__ = "import_jobs"
     
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     source_type = Column(String(50), nullable=False) # 'pdf', 'text', 'json'
     filename = Column(String(255), nullable=True)
     raw_content = Column(Text, nullable=True)
@@ -20,3 +22,5 @@ class ImportJob(BaseModel):
     
     # Status: 'pending', 'parsed', 'approved', 'rejected'
     status = Column(String(50), nullable=False, default="parsed")
+    
+    user = relationship("User", backref="import_jobs")

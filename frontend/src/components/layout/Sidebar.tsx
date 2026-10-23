@@ -16,8 +16,10 @@ import {
   ChevronLeft,
   ChevronRight,
   BrainCircuit,
-  Sparkles
+  Sparkles,
+  Users
 } from 'lucide-react';
+import { authService } from '../../services/auth';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -32,6 +34,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   mobileOpen,
   onCloseMobile
 }) => {
+  const isAdmin = authService.isAdmin();
+
   const navSections = [
     {
       title: 'Workspace',
@@ -59,7 +63,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { name: 'Data Management', path: '/settings/data', icon: HardDrive },
         { name: 'Preferences', path: '/settings/preferences', icon: Sliders },
       ]
-    }
+    },
+    ...(isAdmin ? [
+      {
+        title: 'Administration',
+        items: [
+          { name: 'User Directory', path: '/admin/users', icon: Users },
+        ]
+      }
+    ] : [])
   ];
 
   const sidebarContent = (

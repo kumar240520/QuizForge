@@ -19,32 +19,15 @@ from backend.app.core.config import settings
 
 router = APIRouter(prefix="/generation", tags=["AI Generation"])
 
-def get_stored_gemini_credentials(db: Session):
-    key_setting = db.query(SystemSetting).filter(SystemSetting.key == "gemini_api_key").first()
-    model_setting = db.query(SystemSetting).filter(SystemSetting.key == "gemini_model").first()
-    
-    key = json.loads(key_setting.value_json) if key_setting else None
-    model = json.loads(model_setting.value_json) if model_setting else (settings.GEMINI_MODEL or "gemini-3.8-flash")
-    return key, model
-
 @router.post("/generate", response_model=List[ParsedQuestionItem])
 def generate_questions(
     payload: AIGenerateRequest, 
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
-    db_key, db_model = get_stored_gemini_credentials(db)
-    
-    # Priority order:
-    # 1. Direct payload api_key from frontend modal
-    # 2. Authenticated user's personal stored key
-    # 3. Database SystemSetting key
-    # 4. Fallback GEMINI_API_KEY from .env
     target_key = (
         (payload.api_key.strip() if payload.api_key and payload.api_key.strip() else None)
         or (current_user.gemini_api_key.strip() if current_user and current_user.gemini_api_key and current_user.gemini_api_key.strip() else None)
-        or (db_key.strip() if db_key and str(db_key).strip() else None)
-        or (settings.GEMINI_API_KEY.strip() if settings.GEMINI_API_KEY and settings.GEMINI_API_KEY.strip() else None)
     )
     
     if not target_key:
@@ -53,7 +36,7 @@ def generate_questions(
             detail="Gemini API key is required. Please set up your free Gemini key in the AI Setup modal or Settings."
         )
         
-    target_model = payload.model_name or db_model or settings.GEMINI_MODEL
+    target_model = payload.model_name or (current_user.gemini_model if current_user else None) or "gemini-2.5-flash"
     
     # If the user passed a valid key and is logged in but doesn't have one saved, save it automatically
     if payload.api_key and payload.api_key.strip() and current_user and not current_user.gemini_api_key:
@@ -93,7 +76,8 @@ async def generate_grounded_from_file(
     question_types: str = Form("single_choice"), # comma-separated
     difficulty: str = Form("medium"),
     source_only_mode: bool = Form(True),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     pdf_bytes = await file.read()
     try:
@@ -101,7 +85,10 @@ async def generate_grounded_from_file(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to extract document text: {str(e)}")
         
-    db_key, db_model = get_stored_gemini_credentials(db)
+    target_key = current_user.gemini_api_key.strip() if (current_user and current_user.gemini_api_key) else None
+    if not target_key:
+        raise HTTPException(status_code=400, detail="Gemini API key is required. Please set up your key in AI Settings.")
+    target_model = (current_user.gemini_model if current_user else None) or "gemini-2.5-flash"
     types_list = [t.strip() for t in question_types.split(",") if t.strip()]
     
     try:
@@ -113,15 +100,19 @@ async def generate_grounded_from_file(
             difficulty=difficulty,
             source_material=text[:10000],
             source_only_mode=source_only_mode,
-            api_key=db_key,
-            model_name=db_model
+            api_key=target_key,
+            model_name=target_model
         )
         return items
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/save-to-bank")
-def save_generated_to_bank(payload: ApproveQuestionsRequest, db: Session = Depends(get_db)):
+def save_generated_to_bank(
+    payload: ApproveQuestionsRequest, 
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     from backend.app.models.quiz import Quiz
     
     quiz = None
@@ -130,9 +121,16 @@ def save_generated_to_bank(payload: ApproveQuestionsRequest, db: Session = Depen
 
     bank_id = payload.bank_id
     if not bank_id and not payload.quiz_id:
-        default_bank = db.query(QuestionBank).filter(QuestionBank.is_default == True).first()
+        user_bank_q = db.query(QuestionBank).filter(QuestionBank.is_default == True)
+        if current_user:
+            user_bank_q = user_bank_q.filter(QuestionBank.user_id == current_user.id)
+        default_bank = user_bank_q.first()
         if not default_bank:
-            default_bank = QuestionBank(title="AI Generated Bank", is_default=True)
+            default_bank = QuestionBank(
+                title="AI Generated Bank", 
+                is_default=True, 
+                user_id=current_user.id if current_user else None
+            )
             db.add(default_bank)
             db.commit()
             db.refresh(default_bank)
@@ -152,6 +150,7 @@ def save_generated_to_bank(payload: ApproveQuestionsRequest, db: Session = Depen
             for opt in item.options
         ]
         q = Question(
+            user_id=current_user.id if current_user else None,
             bank_id=bank_id,
             quiz_id=payload.quiz_id,
             section_name=sec,

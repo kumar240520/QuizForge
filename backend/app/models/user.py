@@ -11,6 +11,7 @@ class User(BaseModel):
     role = Column(String(50), nullable=False, default="candidate") # "admin", "candidate"
     is_active = Column(Boolean, nullable=False, default=True)
     gemini_api_key = Column(String(255), nullable=True)
+    gemini_model = Column(String(100), nullable=True, default="gemini-2.5-flash")
     active_session_id = Column(String(64), nullable=True, index=True)
     last_login_at = Column(DateTime(timezone=True), nullable=True)
 

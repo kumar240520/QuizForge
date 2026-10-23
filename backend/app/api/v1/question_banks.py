@@ -1,7 +1,9 @@
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from backend.app.core.database import get_db
+from backend.app.core.security import get_current_user_optional
+from backend.app.models.user import User
 from backend.app.models.question_bank import QuestionBank, Subject, Topic
 from backend.app.models.question import Question
 from backend.app.schemas.question import (
@@ -13,11 +15,25 @@ from backend.app.schemas.question import (
 router = APIRouter(prefix="/banks", tags=["Question Banks"])
 
 @router.get("", response_model=List[QuestionBankRead])
-def list_banks(db: Session = Depends(get_db)):
-    banks = db.query(QuestionBank).all()
-    # If no banks exist, auto-create a Default Bank
+def list_banks(
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    query = db.query(QuestionBank)
+    if current_user:
+        query = query.filter(QuestionBank.user_id == current_user.id)
+    else:
+        query = query.filter(QuestionBank.user_id.is_(None))
+    banks = query.all()
+    
+    # If no banks exist for this user, auto-create a personal Default Bank
     if not banks:
-        default_bank = QuestionBank(title="Default Bank", description="Primary personal question bank", is_default=True)
+        default_bank = QuestionBank(
+            title="Default Bank", 
+            description="Primary personal question bank", 
+            is_default=True,
+            user_id=current_user.id if current_user else None
+        )
         db.add(default_bank)
         db.commit()
         db.refresh(default_bank)
@@ -32,8 +48,15 @@ def list_banks(db: Session = Depends(get_db)):
     return res
 
 @router.post("", response_model=QuestionBankRead)
-def create_bank(payload: QuestionBankCreate, db: Session = Depends(get_db)):
-    bank = QuestionBank(**payload.model_dump())
+def create_bank(
+    payload: QuestionBankCreate, 
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    bank_data = payload.model_dump()
+    if current_user:
+        bank_data["user_id"] = current_user.id
+    bank = QuestionBank(**bank_data)
     db.add(bank)
     db.commit()
     db.refresh(bank)
@@ -42,10 +65,16 @@ def create_bank(payload: QuestionBankCreate, db: Session = Depends(get_db)):
     return item
 
 @router.delete("/{bank_id}")
-def delete_bank(bank_id: int, db: Session = Depends(get_db)):
+def delete_bank(
+    bank_id: int, 
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     bank = db.query(QuestionBank).filter(QuestionBank.id == bank_id).first()
     if not bank:
         raise HTTPException(status_code=404, detail="Question bank not found")
+    if current_user and bank.user_id and bank.user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="You do not have permission to delete this question bank.")
     db.delete(bank)
     db.commit()
     return {"message": "Question bank deleted successfully"}
