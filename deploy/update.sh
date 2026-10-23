@@ -5,6 +5,7 @@ APP_DIR="/home/ubuntu/QuizForge"
 cd "$APP_DIR"
 
 echo "--> Pulling latest code changes from Git..."
+git checkout -- .
 git pull
 
 echo "--> Updating Python backend dependencies..."
