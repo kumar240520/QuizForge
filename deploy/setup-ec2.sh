@@ -43,6 +43,7 @@ fi
 # 5. Build Frontend React/Vite Application
 echo "--> Installing frontend dependencies and compiling static bundle..."
 cd "$APP_DIR/frontend"
+rm -f package-lock.json
 npm install
 npm run build
 cd "$APP_DIR"
