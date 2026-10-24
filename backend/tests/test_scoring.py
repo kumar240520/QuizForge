@@ -96,3 +96,42 @@ def test_matching_partial_credit():
     res = ScoringService.evaluate_question(q, {"1": "A", "2": "B", "3": "X", "4": "Y"})
     assert res["is_partially_correct"] is True
     assert res["marks_awarded"] == 2.0
+
+def test_true_false_scoring_and_friendly_feedback():
+    q = {
+        "question_type": "true_false",
+        "options": [{"id": "TRUE", "text": "True"}, {"id": "FALSE", "text": "False"}],
+        "correct_answer": ["FALSE"],
+        "points": 1.0,
+        "negative_marks": 0.25
+    }
+
+    # Correct match using "FALSE"
+    res1 = ScoringService.evaluate_question(q, ["FALSE"])
+    assert res1["is_correct"] is True
+    assert res1["marks_awarded"] == 1.0
+
+    # Incorrect match using "TRUE" - feedback MUST NOT say letter 'B'
+    res2 = ScoringService.evaluate_question(q, ["TRUE"])
+    assert res2["is_correct"] is False
+    assert res2["marks_awarded"] == -0.25
+    assert "Correct answer is: False" in res2["feedback"]
+    assert "is: B" not in res2["feedback"]
+
+    # Legacy AI case where correct_answer was stored as ["B"] and options had B as False
+    q_legacy = {
+        "question_type": "true_false",
+        "options": [{"id": "A", "text": "True"}, {"id": "B", "text": "False"}],
+        "correct_answer": ["B"],
+        "points": 1.0,
+        "negative_marks": 0.0
+    }
+    # Candidate UI submits ["FALSE"]
+    res3 = ScoringService.evaluate_question(q_legacy, ["FALSE"])
+    assert res3["is_correct"] is True
+    
+    # Candidate UI submits ["TRUE"] -> should say correct is False
+    res4 = ScoringService.evaluate_question(q_legacy, ["TRUE"])
+    assert res4["is_correct"] is False
+    assert "Correct answer is: False" in res4["feedback"]
+

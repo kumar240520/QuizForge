@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   FileCheck2,
   Clock,
@@ -23,19 +23,23 @@ import { Question } from '../types';
 
 export const AssessmentBuilderPage: React.FC = () => {
   const navigate = useNavigate();
+  const { id } = useParams<{ id?: string }>();
+  const [searchParams] = useSearchParams();
+  const editQuizId = id ? Number(id) : searchParams.get('edit_id') ? Number(searchParams.get('edit_id')) : null;
+  const isEditing = Boolean(editQuizId);
 
-  const [title, setTitle] = useState('New Diagnostic Assessment');
+  const [title, setTitle] = useState(isEditing ? '' : 'New Diagnostic Assessment');
   const [description, setDescription] = useState('');
   const [mode, setMode] = useState<'practice' | 'exam' | 'revision'>('exam');
   
   // Timing modes
   const [timingMode, setTimingMode] = useState<'total_duration' | 'per_question' | 'both' | 'untimed'>('total_duration');
-  const [durationMinutes, setDurationMinutes] = useState(30);
-  const [perQuestionSeconds, setPerQuestionSeconds] = useState(60);
+  const [durationMinutes, setDurationMinutes] = useState<number | ''>(30);
+  const [perQuestionSeconds, setPerQuestionSeconds] = useState<number | ''>(60);
 
   // Scoring
-  const [positiveMarks, setPositiveMarks] = useState(1.0);
-  const [negativeMarks, setNegativeMarks] = useState(0.25);
+  const [positiveMarks, setPositiveMarks] = useState<number | ''>(1.0);
+  const [negativeMarks, setNegativeMarks] = useState<number | ''>(0.25);
   const [partialCredit, setPartialCredit] = useState(true);
 
   // Navigation & feedback
@@ -65,6 +69,51 @@ export const AssessmentBuilderPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (editQuizId) {
+      setLoading(true);
+      Promise.all([
+        api.getQuiz(editQuizId),
+        api.getQuestions(),
+        api.getQuizQuestions(editQuizId)
+      ])
+        .then(([quiz, allQuestions, quizQuestions]) => {
+          setTitle(quiz.title || '');
+          setDescription(quiz.description || '');
+          setMode((quiz.mode as any) || 'exam');
+          setTimingMode((quiz.timing_mode as any) || 'total_duration');
+          if (quiz.duration_minutes !== null && quiz.duration_minutes !== undefined) {
+            setDurationMinutes(quiz.duration_minutes);
+          }
+          if (quiz.per_question_seconds !== null && quiz.per_question_seconds !== undefined) {
+            setPerQuestionSeconds(quiz.per_question_seconds);
+          }
+          setPositiveMarks(quiz.positive_marks ?? 1.0);
+          setNegativeMarks(quiz.negative_marks ?? 0.0);
+          setPartialCredit(quiz.partial_credit ?? true);
+          setAllowSkip(quiz.allow_skip ?? true);
+          setAllowBackNav(quiz.allow_back_nav ?? true);
+          setAllowChangeAnswer(quiz.allow_change_answer ?? true);
+          setImmediateFeedback(quiz.immediate_feedback ?? false);
+          setShowExplanation(quiz.show_explanation ?? true);
+          setRandomizeQuestions(quiz.randomize_questions ?? false);
+          setRandomizeOptions(quiz.randomize_options ?? false);
+          setQuestionCountToPresent(quiz.question_count_to_present ?? '');
+
+          const quizQIds = quiz.question_ids && quiz.question_ids.length > 0 ? quiz.question_ids : quizQuestions.map(q => q.id);
+          setSelectedQIds(quizQIds);
+
+          const map = new Map<number, Question>();
+          quizQuestions.forEach(q => map.set(q.id, q));
+          allQuestions.forEach(q => map.set(q.id, q));
+          setAvailableQuestions(Array.from(map.values()));
+        })
+        .catch(err => {
+          setError(err.message || 'Failed to load assessment for editing.');
+        })
+        .finally(() => setLoading(false));
+      return;
+    }
+
     // Check if question IDs were explicitly preselected from Question Bank / Revision
     const preselectedRaw = sessionStorage.getItem('quizforge_builder_selected_qids');
     let preselected: number[] = [];
@@ -91,7 +140,7 @@ export const AssessmentBuilderPage: React.FC = () => {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, []);
+  }, [editQuizId]);
 
   const toggleQuestion = (id: number) => {
     if (selectedQIds.includes(id)) {
@@ -109,16 +158,21 @@ export const AssessmentBuilderPage: React.FC = () => {
     }
 
     setSaving(true);
+    const finalDuration = typeof durationMinutes === 'number' && durationMinutes > 0 ? durationMinutes : 30;
+    const finalPerQuestion = typeof perQuestionSeconds === 'number' && perQuestionSeconds > 0 ? perQuestionSeconds : 60;
+    const finalPositive = typeof positiveMarks === 'number' && positiveMarks >= 0 ? positiveMarks : 1.0;
+    const finalNegative = typeof negativeMarks === 'number' && negativeMarks >= 0 ? negativeMarks : 0.0;
+
     try {
-      const quiz = await api.createQuiz({
+      const payload = {
         title,
         description,
         mode,
         timing_mode: timingMode,
-        duration_minutes: ['total_duration', 'both'].includes(timingMode) ? durationMinutes : null,
-        per_question_seconds: ['per_question', 'both'].includes(timingMode) ? perQuestionSeconds : null,
-        positive_marks: positiveMarks,
-        negative_marks: negativeMarks,
+        duration_minutes: ['total_duration', 'both'].includes(timingMode) ? finalDuration : null,
+        per_question_seconds: ['per_question', 'both'].includes(timingMode) ? finalPerQuestion : null,
+        positive_marks: finalPositive,
+        negative_marks: finalNegative,
         partial_credit: partialCredit,
         allow_skip: allowSkip,
         allow_back_nav: allowBackNav,
@@ -130,33 +184,50 @@ export const AssessmentBuilderPage: React.FC = () => {
         auto_submit_on_timeout: true,
         question_ids: selectedQIds,
         question_count_to_present: questionCountToPresent !== '' ? Number(questionCountToPresent) : null,
-        sections: [{ name: "Section 1", description: "General" }]
-      });
+      };
 
-      if (nextAction === 'ai') {
-        const cnt = questionCountToPresent || 10;
-        sessionStorage.setItem('quizforge_desired_question_count', String(cnt));
-        navigate(`/create-assessment?tab=ai&quiz_id=${quiz.id}&count=${cnt}`);
-      } else if (nextAction === 'import') {
-        navigate(`/imports?quiz_id=${quiz.id}`);
+      if (isEditing && editQuizId) {
+        await api.updateQuiz(editQuizId, payload);
+        if (nextAction === 'ai') {
+          navigate(`/create-assessment?tab=ai&quiz_id=${editQuizId}`);
+        } else if (nextAction === 'import') {
+          navigate(`/imports?quiz_id=${editQuizId}`);
+        } else {
+          navigate(`/assessments/${editQuizId}/bank`);
+        }
       } else {
-        navigate(`/assessments/${quiz.id}/bank`);
+        const quiz = await api.createQuiz({
+          ...payload,
+          sections: [{ name: "Section 1", description: "General" }]
+        });
+
+        if (nextAction === 'ai') {
+          const cnt = questionCountToPresent || 10;
+          sessionStorage.setItem('quizforge_desired_question_count', String(cnt));
+          navigate(`/create-assessment?tab=ai&quiz_id=${quiz.id}&count=${cnt}`);
+        } else if (nextAction === 'import') {
+          navigate(`/imports?quiz_id=${quiz.id}`);
+        } else {
+          navigate(`/assessments/${quiz.id}/bank`);
+        }
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to create assessment.');
+      setError(err.message || (isEditing ? 'Failed to update assessment.' : 'Failed to create assessment.'));
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-fadeIn pb-16">
+    <div className="max-w-4xl mx-auto space-y-8 animate-fadeIn pb-16 px-2 sm:px-4">
       <div>
         <h2 className="text-2xl font-bold tracking-tight text-foreground">
-          Assessment Builder
+          {isEditing ? `Edit Assessment: ${title || 'Configuration'}` : 'Assessment Builder'}
         </h2>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Configure assessment rules, server-authoritative timer limits, scoring policies, and select questions.
+          {isEditing
+            ? 'Modify assessment configuration, timer limits, scoring policy, and assigned questions.'
+            : 'Configure assessment rules, server-authoritative timer limits, scoring policies, and select questions.'}
         </p>
       </div>
 
@@ -199,7 +270,7 @@ export const AssessmentBuilderPage: React.FC = () => {
           {/* Mode Selector */}
           <div className="space-y-1.5 pt-1">
             <label className="text-xs font-semibold text-foreground">Assessment Mode</label>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {[
                 { id: 'exam', label: 'Exam Mode', desc: 'Authoritative evaluation. Answers revealed only after full submission.' },
                 { id: 'practice', label: 'Practice Mode', desc: 'Formative learning. Optional immediate answer feedback and retry.' },
@@ -230,7 +301,7 @@ export const AssessmentBuilderPage: React.FC = () => {
             Timing Configuration Wizard
           </h3>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             {[
               { id: 'total_duration', label: 'Mode A: Total Duration', desc: 'Countdown for whole quiz' },
               { id: 'per_question', label: 'Mode B: Per-Question', desc: 'Countdown per question' },
@@ -256,8 +327,8 @@ export const AssessmentBuilderPage: React.FC = () => {
           {['total_duration', 'both'].includes(timingMode) && (
             <div className="p-4 rounded-xl bg-muted/40 border border-border space-y-2">
               <label className="text-xs font-semibold text-foreground">Total Session Duration (Minutes)</label>
-              <div className="flex items-center gap-2">
-                {[15, 30, 45, 60, 90].map(m => (
+              <div className="flex flex-wrap items-center gap-2 w-full">
+                {[5, 10, 15, 30, 45, 60, 90].map(m => (
                   <button
                     key={m}
                     type="button"
@@ -273,8 +344,16 @@ export const AssessmentBuilderPage: React.FC = () => {
                   type="number"
                   min={1}
                   value={durationMinutes}
-                  onChange={e => setDurationMinutes(parseInt(e.target.value) || 1)}
-                  className="w-20 px-2 py-1.5 rounded-lg bg-background border border-input text-foreground text-xs"
+                  onChange={e => {
+                    const val = e.target.value;
+                    setDurationMinutes(val === '' ? '' : parseInt(val, 10));
+                  }}
+                  onBlur={() => {
+                    if (durationMinutes === '' || durationMinutes < 1) {
+                      setDurationMinutes(30);
+                    }
+                  }}
+                  className="w-20 px-2 py-1.5 rounded-lg bg-background border border-input text-foreground text-xs font-mono font-bold"
                 />
               </div>
             </div>
@@ -283,7 +362,7 @@ export const AssessmentBuilderPage: React.FC = () => {
           {['per_question', 'both'].includes(timingMode) && (
             <div className="p-4 rounded-xl bg-muted/40 border border-border space-y-2">
               <label className="text-xs font-semibold text-foreground">Default Per-Question Time Limit (Seconds)</label>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2 w-full">
                 {[30, 45, 60, 90, 120].map(s => (
                   <button
                     key={s}
@@ -300,8 +379,16 @@ export const AssessmentBuilderPage: React.FC = () => {
                   type="number"
                   min={5}
                   value={perQuestionSeconds}
-                  onChange={e => setPerQuestionSeconds(parseInt(e.target.value) || 5)}
-                  className="w-20 px-2 py-1.5 rounded-lg bg-background border border-input text-foreground text-xs"
+                  onChange={e => {
+                    const val = e.target.value;
+                    setPerQuestionSeconds(val === '' ? '' : parseInt(val, 10));
+                  }}
+                  onBlur={() => {
+                    if (perQuestionSeconds === '' || perQuestionSeconds < 5) {
+                      setPerQuestionSeconds(60);
+                    }
+                  }}
+                  className="w-20 px-2 py-1.5 rounded-lg bg-background border border-input text-foreground text-xs font-mono font-bold"
                 />
               </div>
               <p className="text-[11px] text-muted-foreground">
@@ -326,8 +413,16 @@ export const AssessmentBuilderPage: React.FC = () => {
                 step="0.25"
                 min="0.25"
                 value={positiveMarks}
-                onChange={e => setPositiveMarks(parseFloat(e.target.value) || 1.0)}
-                className="w-full px-3 py-2 rounded-lg bg-background border border-input text-foreground text-xs"
+                onChange={e => {
+                  const val = e.target.value;
+                  setPositiveMarks(val === '' ? '' : parseFloat(val));
+                }}
+                onBlur={() => {
+                  if (positiveMarks === '' || positiveMarks < 0.25) {
+                    setPositiveMarks(1.0);
+                  }
+                }}
+                className="w-full px-3 py-2 rounded-lg bg-background border border-input text-foreground text-xs font-mono"
               />
             </div>
 
@@ -338,8 +433,16 @@ export const AssessmentBuilderPage: React.FC = () => {
                 step="0.25"
                 min="0"
                 value={negativeMarks}
-                onChange={e => setNegativeMarks(parseFloat(e.target.value) || 0.0)}
-                className="w-full px-3 py-2 rounded-lg bg-background border border-input text-foreground text-xs"
+                onChange={e => {
+                  const val = e.target.value;
+                  setNegativeMarks(val === '' ? '' : parseFloat(val));
+                }}
+                onBlur={() => {
+                  if (negativeMarks === '' || negativeMarks < 0) {
+                    setNegativeMarks(0.0);
+                  }
+                }}
+                className="w-full px-3 py-2 rounded-lg bg-background border border-input text-foreground text-xs font-mono"
               />
             </div>
 
@@ -412,10 +515,15 @@ export const AssessmentBuilderPage: React.FC = () => {
                   max="1000"
                   value={questionCountToPresent}
                   onChange={e => {
-                    const val = e.target.value === '' ? '' : parseInt(e.target.value);
+                    const val = e.target.value === '' ? '' : parseInt(e.target.value, 10);
                     setQuestionCountToPresent(val);
                     if (typeof val === 'number' && !isNaN(val)) {
                       sessionStorage.setItem('quizforge_desired_question_count', String(val));
+                    }
+                  }}
+                  onBlur={() => {
+                    if (typeof questionCountToPresent === 'number' && questionCountToPresent < 1) {
+                      setQuestionCountToPresent('');
                     }
                   }}
                   placeholder="e.g. 25 (default: All)"
@@ -683,10 +791,10 @@ export const AssessmentBuilderPage: React.FC = () => {
               className="inline-flex items-center space-x-2 px-6 py-2.5 rounded-xl text-xs font-semibold bg-primary hover:bg-primary-hover disabled:opacity-50 text-primary-foreground shadow-sm transition-all"
             >
               {saving ? (
-                <span>Creating Assessment...</span>
+                <span>{isEditing ? 'Saving Changes...' : 'Creating Assessment...'}</span>
               ) : (
                 <>
-                  <span>Create Assessment & Open Bank</span>
+                  <span>{isEditing ? 'Save Changes & Open Bank' : 'Create Assessment & Open Bank'}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </>
               )}

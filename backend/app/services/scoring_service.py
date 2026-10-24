@@ -26,6 +26,37 @@ class ScoringService:
                 return None
         return None
 
+    @staticmethod
+    def _normalize_bool_token(val: Any, options: Optional[List[Any]] = None) -> Optional[str]:
+        if val is None:
+            return None
+        if isinstance(val, bool):
+            return "TRUE" if val else "FALSE"
+        s = str(val).strip().upper()
+        if s in ["TRUE", "T", "1"]:
+            return "TRUE"
+        if s in ["FALSE", "F", "0"]:
+            return "FALSE"
+            
+        # Check against options if A/B was passed
+        if options and s in ["A", "B"]:
+            opt_a_text = ""
+            opt_b_text = ""
+            for o in options:
+                oid = (o.get("id") if isinstance(o, dict) else getattr(o, "id", "") or "").strip().upper()
+                otxt = (o.get("text") if isinstance(o, dict) else getattr(o, "text", "") or "").strip().lower()
+                if oid == "A": opt_a_text = otxt
+                if oid == "B": opt_b_text = otxt
+            if s == "A":
+                return "FALSE" if "false" in opt_a_text else "TRUE"
+            if s == "B":
+                return "TRUE" if "true" in opt_b_text else "FALSE"
+        if s == "A":
+            return "TRUE"
+        if s == "B":
+            return "FALSE"
+        return s
+
     @classmethod
     def evaluate_question(
         cls,
@@ -59,6 +90,7 @@ class ScoringService:
         correct_answer = question_dict.get("correct_answer")
         accepted_answers = question_dict.get("accepted_answers") or []
         tolerance = float(question_dict.get("numerical_tolerance") or 0.0)
+        options = question_dict.get("options") or []
         
         # Unanswered check
         if user_answer is None or user_answer == "" or user_answer == [] or user_answer == {}:
@@ -81,9 +113,39 @@ class ScoringService:
                 "feedback": "Descriptive response recorded. Pending evaluation against rubric.",
                 "evaluation_method": "manual_pending"
             }
+
+        # 2a. True / False Binary Evaluation
+        if q_type == "true_false":
+            target = correct_answer[0] if isinstance(correct_answer, list) and len(correct_answer) > 0 else correct_answer
+            user_val = user_answer[0] if isinstance(user_answer, list) and len(user_answer) > 0 else user_answer
             
-        # 2. Single Choice, True/False, Assertion & Reasoning
-        if q_type in ["single_choice", "true_false", "assertion_reasoning"]:
+            norm_target = cls._normalize_bool_token(target, options) or "TRUE"
+            norm_user = cls._normalize_bool_token(user_val, options)
+            
+            is_match = norm_target == norm_user
+            display_target = "True" if norm_target == "TRUE" else "False"
+            
+            if is_match:
+                return {
+                    "is_correct": True,
+                    "is_partially_correct": False,
+                    "marks_awarded": max_marks,
+                    "max_marks": max_marks,
+                    "feedback": "Correct answer!",
+                    "evaluation_method": "deterministic"
+                }
+            else:
+                return {
+                    "is_correct": False,
+                    "is_partially_correct": False,
+                    "marks_awarded": -negative_marks,
+                    "max_marks": max_marks,
+                    "feedback": f"Incorrect. Correct answer is: {display_target}",
+                    "evaluation_method": "deterministic"
+                }
+            
+        # 2b. Single Choice & Assertion & Reasoning
+        if q_type in ["single_choice", "assertion_reasoning"]:
             target = correct_answer
             if isinstance(target, list) and len(target) > 0:
                 target = target[0]

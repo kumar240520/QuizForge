@@ -76,7 +76,7 @@ export const DashboardPage: React.FC = () => {
         </div>
         <div className="flex items-center gap-3">
           <Link
-            to="/create-assessment"
+            to="/builder"
             className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-primary hover:bg-primary-hover text-primary-foreground shadow-sm transition-all shadow-primary/20"
           >
             <Plus className="w-4 h-4" />
@@ -214,7 +214,7 @@ export const DashboardPage: React.FC = () => {
                   Create your first quiz by importing questions from a document or generating them using AI.
                 </p>
                 <button
-                  onClick={() => navigate('/create-assessment')}
+                  onClick={() => navigate('/builder')}
                   className="mt-4 px-4 py-2 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary-hover transition-colors"
                 >
                   Create Assessment

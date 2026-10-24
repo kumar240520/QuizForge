@@ -39,7 +39,8 @@ def start_quiz_session(
         requested_question_count=payload.question_count,
         requested_question_ids=payload.question_ids,
         mode=payload.mode,
-        user_id=user_id
+        user_id=user_id,
+        custom_duration_minutes=payload.custom_duration_minutes
     )
     return SessionService.get_session_status(db, session)
 

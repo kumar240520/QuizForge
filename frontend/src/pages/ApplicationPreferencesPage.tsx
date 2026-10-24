@@ -7,8 +7,17 @@ import {
 import { api } from '../services/api';
 import { AppPreferences } from '../types';
 
+type PreferencesForm = {
+  default_timing_mode: string;
+  default_quiz_duration_mins: number | '';
+  default_question_seconds: number | '';
+  default_positive_marks: number | '';
+  default_negative_marks: number | '';
+  confirm_on_leave: boolean;
+};
+
 export const ApplicationPreferencesPage: React.FC = () => {
-  const [prefs, setPrefs] = useState<AppPreferences>({
+  const [prefs, setPrefs] = useState<PreferencesForm>({
     default_timing_mode: 'total_duration',
     default_quiz_duration_mins: 30,
     default_question_seconds: 60,
@@ -29,8 +38,17 @@ export const ApplicationPreferencesPage: React.FC = () => {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    const sanitized: AppPreferences = {
+      default_timing_mode: prefs.default_timing_mode,
+      default_quiz_duration_mins: typeof prefs.default_quiz_duration_mins === 'number' && prefs.default_quiz_duration_mins > 0 ? prefs.default_quiz_duration_mins : 30,
+      default_question_seconds: typeof prefs.default_question_seconds === 'number' && prefs.default_question_seconds > 0 ? prefs.default_question_seconds : 60,
+      default_positive_marks: typeof prefs.default_positive_marks === 'number' && prefs.default_positive_marks >= 0 ? prefs.default_positive_marks : 1.0,
+      default_negative_marks: typeof prefs.default_negative_marks === 'number' && prefs.default_negative_marks >= 0 ? prefs.default_negative_marks : 0.0,
+      confirm_on_leave: prefs.confirm_on_leave
+    };
     try {
-      await api.updatePreferences(prefs);
+      await api.updatePreferences(sanitized);
+      setPrefs(sanitized);
       setMessage('Preferences saved successfully.');
       setTimeout(() => setMessage(null), 3000);
     } catch (err: any) {
@@ -80,8 +98,16 @@ export const ApplicationPreferencesPage: React.FC = () => {
               type="number"
               min={1}
               value={prefs.default_quiz_duration_mins}
-              onChange={e => setPrefs({ ...prefs, default_quiz_duration_mins: parseInt(e.target.value) || 1 })}
-              className="w-full px-3 py-2 rounded-xl bg-background border border-input text-foreground text-xs"
+              onChange={e => {
+                const val = e.target.value;
+                setPrefs({ ...prefs, default_quiz_duration_mins: val === '' ? '' : parseInt(val, 10) });
+              }}
+              onBlur={() => {
+                if (prefs.default_quiz_duration_mins === '' || prefs.default_quiz_duration_mins < 1) {
+                  setPrefs(p => ({ ...p, default_quiz_duration_mins: 30 }));
+                }
+              }}
+              className="w-full px-3 py-2 rounded-xl bg-background border border-input text-foreground text-xs font-mono"
             />
           </div>
         </div>
@@ -93,8 +119,16 @@ export const ApplicationPreferencesPage: React.FC = () => {
               type="number"
               min={5}
               value={prefs.default_question_seconds}
-              onChange={e => setPrefs({ ...prefs, default_question_seconds: parseInt(e.target.value) || 5 })}
-              className="w-full px-3 py-2 rounded-xl bg-background border border-input text-foreground text-xs"
+              onChange={e => {
+                const val = e.target.value;
+                setPrefs({ ...prefs, default_question_seconds: val === '' ? '' : parseInt(val, 10) });
+              }}
+              onBlur={() => {
+                if (prefs.default_question_seconds === '' || prefs.default_question_seconds < 5) {
+                  setPrefs(p => ({ ...p, default_question_seconds: 60 }));
+                }
+              }}
+              className="w-full px-3 py-2 rounded-xl bg-background border border-input text-foreground text-xs font-mono"
             />
           </div>
 
@@ -105,8 +139,16 @@ export const ApplicationPreferencesPage: React.FC = () => {
               step="0.25"
               min="0.25"
               value={prefs.default_positive_marks}
-              onChange={e => setPrefs({ ...prefs, default_positive_marks: parseFloat(e.target.value) || 1.0 })}
-              className="w-full px-3 py-2 rounded-xl bg-background border border-input text-foreground text-xs"
+              onChange={e => {
+                const val = e.target.value;
+                setPrefs({ ...prefs, default_positive_marks: val === '' ? '' : parseFloat(val) });
+              }}
+              onBlur={() => {
+                if (prefs.default_positive_marks === '' || prefs.default_positive_marks < 0.25) {
+                  setPrefs(p => ({ ...p, default_positive_marks: 1.0 }));
+                }
+              }}
+              className="w-full px-3 py-2 rounded-xl bg-background border border-input text-foreground text-xs font-mono"
             />
           </div>
 
@@ -117,8 +159,16 @@ export const ApplicationPreferencesPage: React.FC = () => {
               step="0.25"
               min="0"
               value={prefs.default_negative_marks}
-              onChange={e => setPrefs({ ...prefs, default_negative_marks: parseFloat(e.target.value) || 0.0 })}
-              className="w-full px-3 py-2 rounded-xl bg-background border border-input text-foreground text-xs"
+              onChange={e => {
+                const val = e.target.value;
+                setPrefs({ ...prefs, default_negative_marks: val === '' ? '' : parseFloat(val) });
+              }}
+              onBlur={() => {
+                if (prefs.default_negative_marks === '' || prefs.default_negative_marks < 0) {
+                  setPrefs(p => ({ ...p, default_negative_marks: 0.0 }));
+                }
+              }}
+              className="w-full px-3 py-2 rounded-xl bg-background border border-input text-foreground text-xs font-mono"
             />
           </div>
         </div>

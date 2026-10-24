@@ -59,6 +59,10 @@ export const PreAssessmentPage: React.FC = () => {
   const [countMode, setCountMode] = useState<'all' | '10' | '25' | '50' | 'custom'>('all');
   const [customInputVal, setCustomInputVal] = useState<string>('20');
 
+  // Duration override state
+  const [timingOption, setTimingOption] = useState<'default' | '5' | '10' | '15' | '20' | '30' | 'custom' | 'untimed'>('default');
+  const [customDurationInput, setCustomDurationInput] = useState<string>('5');
+
   // Specific question selection state
   const [selectedSpecificQIds, setSelectedSpecificQIds] = useState<number[]>([]);
   const [filterSearch, setFilterSearch] = useState('');
@@ -73,6 +77,10 @@ export const PreAssessmentPage: React.FC = () => {
           setQuiz(qData);
           setQuestions(qList);
           setAssessmentMode((qData.mode as any) || 'exam');
+
+          if (qData.duration_minutes) {
+            setCustomDurationInput(String(qData.duration_minutes));
+          }
 
           const totalInBank = qData.question_ids?.length || qList.length || 0;
           
@@ -140,9 +148,23 @@ export const PreAssessmentPage: React.FC = () => {
 
   const handleCustomInputChange = (valStr: string) => {
     setCustomInputVal(valStr);
-    const parsed = parseInt(valStr);
+    if (valStr === '') return;
+    const parsed = parseInt(valStr, 10);
     if (!isNaN(parsed) && parsed > 0) {
       setSelectedQuestionCount(Math.min(parsed, totalAvailable));
+    }
+  };
+
+  const handleCustomInputBlur = () => {
+    const parsed = parseInt(customInputVal, 10);
+    if (isNaN(parsed) || parsed < 1) {
+      const fallback = Math.min(10, totalAvailable);
+      setCustomInputVal(String(fallback));
+      setSelectedQuestionCount(fallback);
+    } else {
+      const clamped = Math.min(Math.max(1, parsed), totalAvailable);
+      setCustomInputVal(String(clamped));
+      setSelectedQuestionCount(clamped);
     }
   };
 
@@ -179,6 +201,20 @@ export const PreAssessmentPage: React.FC = () => {
     }
   };
 
+  const getCustomDurationMinutes = (): number | undefined => {
+    if (timingOption === 'default') {
+      return quiz?.duration_minutes || undefined;
+    }
+    if (timingOption === 'untimed') {
+      return 0; // 0 signals untimed in backend
+    }
+    if (timingOption === 'custom') {
+      const parsed = parseInt(customDurationInput);
+      return !isNaN(parsed) && parsed > 0 ? parsed : (quiz?.duration_minutes || 15);
+    }
+    return parseInt(timingOption);
+  };
+
   const handleStart = async () => {
     // 1. GUARANTEED AUTOMATIC FULLSCREEN: Execute synchronously on line 1 within user gesture!
     enterFullScreen();
@@ -187,7 +223,15 @@ export const PreAssessmentPage: React.FC = () => {
       setError('Please select at least 1 question to start the assessment.');
       return;
     }
-    if (selectionMode === 'count' && selectedQuestionCount <= 0) {
+    let finalQuestionCount = selectedQuestionCount;
+    if (selectionMode === 'count' && countMode === 'custom') {
+      const parsed = parseInt(customInputVal, 10);
+      finalQuestionCount = !isNaN(parsed) && parsed > 0 ? Math.min(parsed, totalAvailable) : Math.min(10, totalAvailable);
+      setSelectedQuestionCount(finalQuestionCount);
+      setCustomInputVal(String(finalQuestionCount));
+    }
+
+    if (selectionMode === 'count' && finalQuestionCount <= 0) {
       setError('Please select at least 1 question count to start the assessment.');
       return;
     }
@@ -196,10 +240,11 @@ export const PreAssessmentPage: React.FC = () => {
     setError(null);
 
     try {
-      const questionCountArg = selectionMode === 'count' ? selectedQuestionCount : selectedSpecificQIds.length;
+      const questionCountArg = selectionMode === 'count' ? finalQuestionCount : selectedSpecificQIds.length;
       const questionIdsArg = selectionMode === 'specific' ? selectedSpecificQIds : undefined;
+      const durationArg = getCustomDurationMinutes();
 
-      const session = await api.startSession(quiz.id, questionCountArg, questionIdsArg, assessmentMode);
+      const session = await api.startSession(quiz.id, questionCountArg, questionIdsArg, assessmentMode, durationArg);
       navigate(`/session/${session.session_token}`);
     } catch (err: any) {
       setError(err.message || 'Could not initialize assessment session.');
@@ -210,8 +255,8 @@ export const PreAssessmentPage: React.FC = () => {
   const effectiveCount = selectionMode === 'count' ? selectedQuestionCount : selectedSpecificQIds.length;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 animate-fadeIn py-6">
-      <div className="p-8 rounded-2xl bg-card border border-border shadow-sm space-y-6">
+    <div className="max-w-3xl mx-auto space-y-6 animate-fadeIn py-4 sm:py-6 px-2 sm:px-4">
+      <div className="p-5 sm:p-8 rounded-2xl bg-card border border-border shadow-sm space-y-6 overflow-hidden">
         <div>
           <span className={`px-2.5 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wider ${
             assessmentMode === 'exam'
@@ -299,7 +344,7 @@ export const PreAssessmentPage: React.FC = () => {
         )}
 
         {/* Specs Overview */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="p-4 rounded-xl bg-background border border-border">
             <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider block">Questions</span>
             <span className="text-xl font-bold text-primary mt-1 block">
@@ -310,7 +355,13 @@ export const PreAssessmentPage: React.FC = () => {
           <div className="p-4 rounded-xl bg-background border border-border">
             <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider block">Time Limit</span>
             <span className="text-xl font-bold text-foreground mt-1 block">
-              {quiz.timing_mode === 'untimed'
+              {timingOption === 'untimed'
+                ? 'Untimed'
+                : timingOption === 'custom'
+                ? `${customDurationInput || '15'} Mins`
+                : timingOption !== 'default'
+                ? `${timingOption} Mins`
+                : quiz.timing_mode === 'untimed'
                 ? 'Untimed'
                 : quiz.duration_minutes
                 ? `${quiz.duration_minutes} Mins`
@@ -326,23 +377,93 @@ export const PreAssessmentPage: React.FC = () => {
           </div>
         </div>
 
+        {/* TIMING CONFIGURATION CARD */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-muted/30 border border-border space-y-3">
+          <div className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-primary shrink-0" />
+            <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">
+              Assessment Duration Limit
+            </h4>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Configure how much time you have for this attempt, or choose an untimed attempt.
+          </p>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2 pt-1">
+            {[
+              { id: 'default', label: `Default (${quiz.duration_minutes ? quiz.duration_minutes + 'm' : 'Untimed'})` },
+              { id: '5', label: '5 Mins' },
+              { id: '10', label: '10 Mins' },
+              { id: '15', label: '15 Mins' },
+              { id: '20', label: '20 Mins' },
+              { id: '30', label: '30 Mins' },
+              { id: 'custom', label: 'Custom' },
+              { id: 'untimed', label: 'Untimed' }
+            ].map(opt => {
+              const isSelected = timingOption === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setTimingOption(opt.id as any)}
+                  className={`py-2 px-2 rounded-xl text-xs font-semibold border transition-all text-center truncate ${
+                    isSelected
+                      ? 'border-primary bg-primary text-primary-foreground font-bold shadow-xs'
+                      : 'border-border bg-card hover:border-primary/40 text-foreground'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {timingOption === 'custom' && (
+            <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-card p-3 rounded-xl border border-border">
+              <span className="text-xs text-muted-foreground shrink-0">Enter custom duration:</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="1"
+                  max="300"
+                  value={customDurationInput}
+                  onChange={e => setCustomDurationInput(e.target.value)}
+                  onBlur={() => {
+                    const parsed = parseInt(customDurationInput, 10);
+                    if (isNaN(parsed) || parsed < 1) {
+                      setCustomDurationInput(String(quiz?.duration_minutes || 15));
+                    } else {
+                      setCustomDurationInput(String(Math.min(300, Math.max(1, parsed))));
+                    }
+                  }}
+                  placeholder="Minutes"
+                  className="w-24 px-3 py-1.5 rounded-lg bg-background border border-input text-foreground text-sm font-mono font-bold text-center focus:ring-2 focus:ring-primary/40"
+                />
+                <span className="text-xs font-mono text-muted-foreground">
+                  minutes total
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* QUESTION SELECTION MODE TABS: Count-based vs Specific Question Checklist */}
-        <div className="p-5 rounded-2xl bg-primary/5 border border-primary/20 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-primary/10 pb-3">
+        <div className="p-4 sm:p-5 rounded-2xl bg-primary/5 border border-primary/20 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-primary/10 pb-3">
             <div className="flex items-center gap-2">
-              <Sliders className="w-4 h-4 text-primary" />
+              <Sliders className="w-4 h-4 text-primary shrink-0" />
               <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">
                 Question Selection Method
               </h4>
             </div>
 
-            <div className="flex items-center gap-1 bg-background p-1 rounded-xl border border-border">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1 bg-background p-1 rounded-xl border border-border w-full sm:w-auto">
               <button
                 type="button"
                 onClick={() => setSelectionMode('count')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-center ${
                   selectionMode === 'count'
-                    ? 'bg-primary text-primary-foreground shadow-xs'
+                    ? 'bg-primary text-primary-foreground shadow-xs font-bold'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
@@ -351,13 +472,13 @@ export const PreAssessmentPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setSelectionMode('specific')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-center ${
                   selectionMode === 'specific'
-                    ? 'bg-primary text-primary-foreground shadow-xs'
+                    ? 'bg-primary text-primary-foreground shadow-xs font-bold'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                Select Specific Questions ({selectedSpecificQIds.length})
+                Select Specific ({selectedSpecificQIds.length})
               </button>
             </div>
           </div>
@@ -385,7 +506,7 @@ export const PreAssessmentPage: React.FC = () => {
                       type="button"
                       disabled={isDisabled}
                       onClick={() => handleSelectCountMode(opt.id as any)}
-                      className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all ${
+                      className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all text-center ${
                         isSelected
                           ? 'border-primary bg-primary text-primary-foreground shadow-xs font-bold'
                           : isDisabled
@@ -400,27 +521,30 @@ export const PreAssessmentPage: React.FC = () => {
               </div>
 
               {countMode === 'custom' && (
-                <div className="pt-2 flex flex-col sm:flex-row items-center gap-3 bg-card p-3 rounded-xl border border-border">
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">Enter custom count:</span>
-                  <input
-                    type="number"
-                    min="1"
-                    max={totalAvailable}
-                    value={customInputVal}
-                    onChange={e => handleCustomInputChange(e.target.value)}
-                    className="w-24 px-3 py-1.5 rounded-lg bg-background border border-input text-foreground text-sm font-mono font-bold text-center focus:ring-2 focus:ring-primary/40"
-                  />
+                <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-card p-3 rounded-xl border border-border w-full min-w-0">
+                  <span className="text-xs text-muted-foreground shrink-0">Enter custom question count:</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max={totalAvailable}
+                      value={customInputVal}
+                      onChange={e => handleCustomInputChange(e.target.value)}
+                      onBlur={handleCustomInputBlur}
+                      className="w-24 px-3 py-1.5 rounded-lg bg-background border border-input text-foreground text-sm font-mono font-bold text-center focus:ring-2 focus:ring-primary/40"
+                    />
+                    <span className="text-xs font-mono text-muted-foreground shrink-0">
+                      / {totalAvailable} max
+                    </span>
+                  </div>
                   <input
                     type="range"
                     min="1"
                     max={totalAvailable}
-                    value={selectedQuestionCount}
+                    value={selectedQuestionCount || 1}
                     onChange={e => handleCustomInputChange(e.target.value)}
-                    className="flex-1 accent-primary cursor-pointer w-full"
+                    className="flex-1 accent-primary cursor-pointer w-full min-w-0"
                   />
-                  <span className="text-xs font-mono text-muted-foreground whitespace-nowrap">
-                    max {totalAvailable}
-                  </span>
                 </div>
               )}
             </div>

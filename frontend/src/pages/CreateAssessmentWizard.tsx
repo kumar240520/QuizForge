@@ -27,17 +27,19 @@ export const CreateAssessmentWizard: React.FC = () => {
   const [subject, setSubject] = useState('Computer Science');
   const [topic, setTopic] = useState('Data Structures');
   const [subtopics, setSubtopics] = useState('');
-  const [questionCount, setQuestionCount] = useState<number>(() => {
+  const [questionCount, setQuestionCount] = useState<number | ''>(() => {
     const fromUrl = searchParams.get('count');
-    if (fromUrl && !isNaN(parseInt(fromUrl))) return parseInt(fromUrl);
+    if (fromUrl && !isNaN(parseInt(fromUrl, 10))) return parseInt(fromUrl, 10);
     const saved = sessionStorage.getItem('quizforge_desired_question_count');
-    if (saved && !isNaN(parseInt(saved))) return parseInt(saved);
+    if (saved && !isNaN(parseInt(saved, 10))) return parseInt(saved, 10);
     return 10;
   });
 
-  const updateQuestionCount = (val: number) => {
+  const updateQuestionCount = (val: number | '') => {
     setQuestionCount(val);
-    sessionStorage.setItem('quizforge_desired_question_count', val.toString());
+    if (typeof val === 'number') {
+      sessionStorage.setItem('quizforge_desired_question_count', val.toString());
+    }
   };
 
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
@@ -77,12 +79,13 @@ export const CreateAssessmentWizard: React.FC = () => {
     setError(null);
     setLoading(true);
 
+    const finalCount = typeof questionCount === 'number' && questionCount > 0 ? questionCount : 10;
     try {
       const generated = await api.generateQuestions({
         subject,
         topic,
         subtopics: subtopics || undefined,
-        question_count: questionCount,
+        question_count: finalCount,
         question_types: selectedTypes,
         difficulty,
         source_material: mode === 'source' ? sourceText : undefined,
@@ -291,7 +294,7 @@ export const CreateAssessmentWizard: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-foreground">Question Count</label>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2 w-full">
                 {[5, 10, 15, 20].map(cnt => (
                   <button
                     key={cnt}
@@ -311,15 +314,32 @@ export const CreateAssessmentWizard: React.FC = () => {
                   min={1}
                   max={50}
                   value={questionCount}
-                  onChange={e => updateQuestionCount(Math.min(50, Math.max(1, parseInt(e.target.value) || 1)))}
-                  className="w-16 px-2.5 py-1.5 rounded-lg bg-background border border-input text-foreground text-xs text-center"
+                  onChange={e => {
+                    const val = e.target.value;
+                    if (val === '') {
+                      updateQuestionCount('');
+                    } else {
+                      const parsed = parseInt(val, 10);
+                      if (!isNaN(parsed)) {
+                        updateQuestionCount(parsed);
+                      }
+                    }
+                  }}
+                  onBlur={() => {
+                    if (questionCount === '' || questionCount < 1) {
+                      updateQuestionCount(10);
+                    } else if (questionCount > 50) {
+                      updateQuestionCount(50);
+                    }
+                  }}
+                  className="w-16 px-2.5 py-1.5 rounded-lg bg-background border border-input text-foreground text-xs text-center font-mono font-bold"
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-foreground">Difficulty</label>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2 w-full">
                 {(['easy', 'medium', 'hard', 'mixed'] as Difficulty[]).map(d => (
                   <button
                     key={d}

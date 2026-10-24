@@ -19,8 +19,8 @@ export const QuestionEditorPage: React.FC = () => {
   const [questionText, setQuestionText] = useState('');
   const [questionType, setQuestionType] = useState<QuestionType>('single_choice');
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
-  const [points, setPoints] = useState(1.0);
-  const [negativeMarks, setNegativeMarks] = useState(0.0);
+  const [points, setPoints] = useState<number | ''>(1.0);
+  const [negativeMarks, setNegativeMarks] = useState<number | ''>(0.0);
   
   // MCQ options
   const [options, setOptions] = useState<QuestionOption[]>([
@@ -35,7 +35,7 @@ export const QuestionEditorPage: React.FC = () => {
   // Other types
   const [textAnswer, setTextAnswer] = useState('');
   const [acceptedAnswersStr, setAcceptedAnswersStr] = useState('');
-  const [numericalTolerance, setNumericalTolerance] = useState(0.0);
+  const [numericalTolerance, setNumericalTolerance] = useState<number | ''>(0.0);
   
   const [explanation, setExplanation] = useState('');
   const [sourceRef, setSourceRef] = useState('');
@@ -107,7 +107,15 @@ export const QuestionEditorPage: React.FC = () => {
     }
 
     let finalCorrectAnswer: any = [correctAnswer];
-    if (questionType === 'multiple_choice') {
+    let finalOptions = options;
+    if (questionType === 'true_false') {
+      const boolVal = String(correctAnswer).toUpperCase().includes('FALSE') || String(correctAnswer).toUpperCase() === 'B' ? 'FALSE' : 'TRUE';
+      finalCorrectAnswer = [boolVal];
+      finalOptions = [
+        { id: 'TRUE', text: 'True' },
+        { id: 'FALSE', text: 'False' }
+      ];
+    } else if (questionType === 'multiple_choice') {
       finalCorrectAnswer = multiSelectAnswers;
     } else if (questionType === 'numerical') {
       finalCorrectAnswer = [parseFloat(textAnswer) || 0.0];
@@ -115,16 +123,20 @@ export const QuestionEditorPage: React.FC = () => {
       finalCorrectAnswer = [textAnswer.trim()];
     }
 
+    const finalPoints = typeof points === 'number' && points >= 0 ? points : 1.0;
+    const finalNegativeMarks = typeof negativeMarks === 'number' && negativeMarks >= 0 ? negativeMarks : 0.0;
+    const finalTolerance = typeof numericalTolerance === 'number' && numericalTolerance >= 0 ? numericalTolerance : 0.0;
+
     const payload = {
       question_text: questionText,
       question_type: questionType,
       difficulty,
-      points,
-      negative_marks: negativeMarks,
-      options: ['single_choice', 'multiple_choice', 'true_false', 'assertion_reasoning'].includes(questionType) ? options : [],
+      points: finalPoints,
+      negative_marks: finalNegativeMarks,
+      options: ['single_choice', 'multiple_choice', 'true_false', 'assertion_reasoning'].includes(questionType) ? finalOptions : [],
       correct_answer: finalCorrectAnswer,
       accepted_answers: acceptedAnswersStr ? acceptedAnswersStr.split(',').map(s => s.trim()).filter(Boolean) : [],
-      numerical_tolerance: numericalTolerance,
+      numerical_tolerance: finalTolerance,
       explanation,
       source_ref: sourceRef,
       subject_id: selectedSubjectId,
@@ -291,6 +303,33 @@ export const QuestionEditorPage: React.FC = () => {
           </div>
         )}
 
+        {/* True / False Selection */}
+        {questionType === 'true_false' && (
+          <div className="space-y-2 pt-2">
+            <label className="text-xs font-semibold text-foreground">Select Correct Answer *</label>
+            <div className="grid grid-cols-2 gap-3 max-w-sm">
+              {['TRUE', 'FALSE'].map(val => {
+                const normCurrent = String(correctAnswer).toUpperCase().includes('FALSE') || String(correctAnswer).toUpperCase() === 'B' ? 'FALSE' : 'TRUE';
+                const isSelected = normCurrent === val;
+                return (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setCorrectAnswer(val)}
+                    className={`py-3 rounded-xl border text-sm font-bold transition-all shadow-xs ${
+                      isSelected
+                        ? 'border-emerald-500 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 ring-2 ring-emerald-500/30'
+                        : 'border-input bg-card hover:bg-muted text-muted-foreground'
+                    }`}
+                  >
+                    {val === 'TRUE' ? 'True' : 'False'}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Text/Numerical input */}
         {['fill_in_the_blank', 'short_answer', 'numerical'].includes(questionType) && (
           <div className="space-y-3 pt-2">
@@ -313,8 +352,16 @@ export const QuestionEditorPage: React.FC = () => {
                   type="number"
                   step="any"
                   value={numericalTolerance}
-                  onChange={e => setNumericalTolerance(parseFloat(e.target.value) || 0.0)}
-                  className="w-32 px-3 py-2 rounded-lg bg-background border border-input text-foreground text-xs"
+                  onChange={e => {
+                    const val = e.target.value;
+                    setNumericalTolerance(val === '' ? '' : parseFloat(val));
+                  }}
+                  onBlur={() => {
+                    if (numericalTolerance === '' || numericalTolerance < 0) {
+                      setNumericalTolerance(0.0);
+                    }
+                  }}
+                  className="w-32 px-3 py-2 rounded-lg bg-background border border-input text-foreground text-xs font-mono"
                 />
               </div>
             )}
@@ -343,8 +390,16 @@ export const QuestionEditorPage: React.FC = () => {
               step="0.25"
               min="0.25"
               value={points}
-              onChange={e => setPoints(parseFloat(e.target.value) || 1.0)}
-              className="w-full px-3 py-2 rounded-lg bg-background border border-input text-foreground text-xs"
+              onChange={e => {
+                const val = e.target.value;
+                setPoints(val === '' ? '' : parseFloat(val));
+              }}
+              onBlur={() => {
+                if (points === '' || points < 0.25) {
+                  setPoints(1.0);
+                }
+              }}
+              className="w-full px-3 py-2 rounded-lg bg-background border border-input text-foreground text-xs font-mono"
             />
           </div>
 
@@ -355,8 +410,16 @@ export const QuestionEditorPage: React.FC = () => {
               step="0.25"
               min="0"
               value={negativeMarks}
-              onChange={e => setNegativeMarks(parseFloat(e.target.value) || 0.0)}
-              className="w-full px-3 py-2 rounded-lg bg-background border border-input text-foreground text-xs"
+              onChange={e => {
+                const val = e.target.value;
+                setNegativeMarks(val === '' ? '' : parseFloat(val));
+              }}
+              onBlur={() => {
+                if (negativeMarks === '' || negativeMarks < 0) {
+                  setNegativeMarks(0.0);
+                }
+              }}
+              className="w-full px-3 py-2 rounded-lg bg-background border border-input text-foreground text-xs font-mono"
             />
           </div>
         </div>

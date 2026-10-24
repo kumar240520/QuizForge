@@ -30,7 +30,8 @@ class SessionService:
         requested_question_count: Optional[int] = None,
         requested_question_ids: Optional[List[int]] = None,
         mode: Optional[str] = None,
-        user_id: Optional[int] = None
+        user_id: Optional[int] = None,
+        custom_duration_minutes: Optional[int] = None
     ) -> QuizSession:
         """Create and initialize a server-authoritative quiz session."""
         if requested_question_ids and len(requested_question_ids) > 0:
@@ -60,7 +61,12 @@ class SessionService:
 
         # Calculate session deadline (Exam mode enforces deadlines strictly, Practice can be untimed if configured)
         session_deadline = None
-        if quiz.timing_mode in ["total_duration", "both"] and quiz.duration_minutes:
+        if custom_duration_minutes is not None and custom_duration_minutes > 0:
+            session_deadline = now + timedelta(minutes=custom_duration_minutes)
+        elif custom_duration_minutes == 0:
+            # Explicitly untimed attempt
+            session_deadline = None
+        elif quiz.timing_mode in ["total_duration", "both"] and quiz.duration_minutes:
             session_deadline = now + timedelta(minutes=quiz.duration_minutes)
             
         # Option order randomization per question

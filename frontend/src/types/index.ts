@@ -240,6 +240,7 @@ export interface ParsedQuestionItem {
   status: 'valid' | 'needs_review' | 'duplicate' | 'missing_answer';
   issues: string[];
   is_approved: boolean;
+  metadata_extra?: Record<string, any>;
 }
 
 export interface ImportJob {

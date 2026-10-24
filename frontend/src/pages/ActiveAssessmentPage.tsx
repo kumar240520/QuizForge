@@ -787,8 +787,8 @@ export const ActiveAssessmentPage: React.FC = () => {
       {/* 2. REAL CBT MAIN TWO-COLUMN WORKSPACE */}
       <main className="flex-1 min-h-0 max-w-[1750px] w-full mx-auto p-1.5 sm:p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-2 sm:gap-3 lg:gap-5 items-start overflow-hidden">
         {/* Left Column: Question Presentation Area (8-9 Cols on desktop, full width on mobile) - SCROLLABLE */}
-        <div className="col-span-1 lg:col-span-8 xl:col-span-9 h-full overflow-y-auto pr-0.5 sm:pr-2 pb-4 sm:pb-6 space-y-3 sm:space-y-4 scrollbar-thin">
-          <div className="bg-white dark:bg-slate-900 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-3.5 sm:p-7 space-y-3.5 sm:space-y-6">
+        <div className="col-span-1 lg:col-span-8 xl:col-span-9 h-full overflow-y-auto pr-0.5 sm:pr-2 pb-4 sm:pb-6 space-y-3 sm:space-y-4 scrollbar-thin min-w-0">
+          <div className="bg-white dark:bg-slate-900 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-3.5 sm:p-7 space-y-3.5 sm:space-y-6 w-full max-w-full min-w-0 overflow-x-hidden">
             {/* Question Header & Marking Scheme */}
             <div className="flex items-center justify-between gap-2 pb-2 sm:pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-1.5 sm:gap-2.5 flex-wrap">
@@ -1010,10 +1010,17 @@ export const ActiveAssessmentPage: React.FC = () => {
               {q.question_type === 'true_false' && (
                 <div className="grid grid-cols-2 gap-4">
                   {['TRUE', 'FALSE'].map((val) => {
+                    const normBool = (v: any): string => {
+                      const s = String(v || '').trim().toUpperCase();
+                      if (s === 'TRUE' || s === 'T' || s === '1' || s === 'A') return 'TRUE';
+                      if (s === 'FALSE' || s === 'F' || s === '0' || s === 'B') return 'FALSE';
+                      return s;
+                    };
                     const isSelected = Array.isArray(currentAnswer)
-                      ? currentAnswer.includes(val)
-                      : String(currentAnswer).toUpperCase() === val;
-                    const isOptCorrect = practiceFeedback ? String(practiceFeedback.correct_answer).toUpperCase() === val : false;
+                      ? currentAnswer.map(normBool).includes(val)
+                      : normBool(currentAnswer) === val;
+                    const correctNorm = practiceFeedback ? normBool(Array.isArray(practiceFeedback.correct_answer) ? practiceFeedback.correct_answer[0] : practiceFeedback.correct_answer) : '';
+                    const isOptCorrect = practiceFeedback ? correctNorm === val : false;
                     const isOptWrong = practiceFeedback && isSelected && !isOptCorrect;
 
                     let btnClasses = isSelected
@@ -1059,7 +1066,7 @@ export const ActiveAssessmentPage: React.FC = () => {
                 };
 
                 return (
-                  <div className="space-y-4">
+                  <div className="space-y-4 w-full min-w-0">
                     <div className="p-3.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-900 text-xs text-indigo-900 dark:text-indigo-300 flex items-center gap-2">
                       <Columns className="w-4 h-4 text-indigo-600 shrink-0" />
                       <span>For each item in <strong>Column A (Left)</strong>, select the matching item from <strong>Column B (Right)</strong>:</span>
@@ -1067,7 +1074,7 @@ export const ActiveAssessmentPage: React.FC = () => {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {/* Left Column Items with Dropdown selectors */}
-                      <div className="space-y-3">
+                      <div className="space-y-3 min-w-0">
                         <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
                           Column A (Items to Match)
                         </span>
@@ -1077,32 +1084,32 @@ export const ActiveAssessmentPage: React.FC = () => {
                           return (
                             <div
                               key={leftOpt.id}
-                              className={`p-4 rounded-xl border text-sm transition-all space-y-2.5 ${
+                              className={`p-3 sm:p-4 rounded-xl border text-sm transition-all space-y-2.5 overflow-hidden ${
                                 selectedTargetId
                                   ? 'border-indigo-600 bg-indigo-50/40 dark:bg-indigo-950/20'
                                   : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60'
                               }`}
                             >
-                              <div className="flex items-start gap-3">
+                              <div className="flex items-start gap-2.5 sm:gap-3">
                                 <span className="w-6 h-6 rounded-full bg-indigo-600 text-white font-mono font-bold text-xs flex items-center justify-center shrink-0">
                                   {leftOpt.id}
                                 </span>
-                                <span className="font-semibold text-slate-900 dark:text-slate-100 flex-1 leading-snug">
+                                <span className="font-semibold text-slate-900 dark:text-slate-100 flex-1 min-w-0 break-words leading-snug">
                                   {sanitizeText(leftOpt.text)}
                                 </span>
                               </div>
 
-                              <div className="flex items-center gap-2 pl-9">
-                                <span className="text-xs font-bold text-indigo-600">Matches:</span>
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 w-full pl-0 sm:pl-9">
+                                <span className="text-xs font-bold text-indigo-600 shrink-0">Matches:</span>
                                 <select
                                   value={selectedTargetId}
                                   onChange={(e) => handleMatchChange(leftOpt.id, e.target.value)}
-                                  className="flex-1 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-slate-100 font-medium focus:ring-2 focus:ring-indigo-500"
+                                  className="w-full sm:flex-1 min-w-0 max-w-full truncate px-3 py-2 sm:py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-slate-100 font-medium focus:ring-2 focus:ring-indigo-500"
                                 >
                                   <option value="">-- Choose Matching Option --</option>
                                   {rightTargets.map((rt) => (
                                     <option key={rt.id} value={rt.id}>
-                                      {rt.text}
+                                      {rt.id}: {rt.text}
                                     </option>
                                   ))}
                                 </select>
@@ -1113,7 +1120,7 @@ export const ActiveAssessmentPage: React.FC = () => {
                       </div>
 
                       {/* Right Column (Reference Items) */}
-                      <div className="space-y-3">
+                      <div className="space-y-3 min-w-0">
                         <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
                           Column B (Available Options)
                         </span>
@@ -1124,7 +1131,7 @@ export const ActiveAssessmentPage: React.FC = () => {
                             return (
                               <div
                                 key={rt.id}
-                                className={`p-3.5 rounded-xl border text-xs transition-all flex items-start gap-3 ${
+                                className={`p-3 sm:p-3.5 rounded-xl border text-xs transition-all flex items-start gap-2.5 sm:gap-3 overflow-hidden ${
                                   isMatchedBy
                                     ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 text-slate-900 dark:text-slate-100'
                                     : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40 text-slate-700 dark:text-slate-300'
@@ -1137,7 +1144,8 @@ export const ActiveAssessmentPage: React.FC = () => {
                                 }`}>
                                   {isMatchedBy ? `✓ ${isMatchedBy}` : '•'}
                                 </span>
-                                <span className="leading-relaxed flex-1">
+                                <span className="leading-relaxed flex-1 min-w-0 break-words">
+                                  <strong className="font-semibold text-slate-800 dark:text-slate-200 mr-1.5">{rt.id}:</strong>
                                   {sanitizeText(rt.text)}
                                 </span>
                               </div>
@@ -1325,7 +1333,7 @@ export const ActiveAssessmentPage: React.FC = () => {
                     value={currentAnswer ? (Array.isArray(currentAnswer) ? currentAnswer[0] : currentAnswer) : ''}
                     onChange={e => setCurrentAnswer([e.target.value])}
                     placeholder="Enter numerical response..."
-                    className="w-64 px-4 py-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-base font-mono font-bold focus:ring-2 focus:ring-indigo-500 shadow-xs"
+                    className="w-full max-w-xs sm:w-64 px-4 py-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-base font-mono font-bold focus:ring-2 focus:ring-indigo-500 shadow-xs"
                   />
                 </div>
               )}
@@ -1445,11 +1453,26 @@ export const ActiveAssessmentPage: React.FC = () => {
                     Official Answer Key:
                   </span>
                   <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                    {Array.isArray(practiceFeedback.correct_answer)
-                      ? practiceFeedback.correct_answer.join(', ')
-                      : typeof practiceFeedback.correct_answer === 'object' && practiceFeedback.correct_answer !== null
-                      ? JSON.stringify(practiceFeedback.correct_answer, null, 2)
-                      : String(practiceFeedback.correct_answer)}
+                    {(() => {
+                      const ans = practiceFeedback.correct_answer;
+                      if (q.question_type === 'true_false') {
+                        const raw = Array.isArray(ans) ? ans[0] : ans;
+                        const str = String(raw || '').trim().toUpperCase();
+                        if (str === 'TRUE' || str === 'T' || str === '1') return 'True';
+                        if (str === 'FALSE' || str === 'F' || str === '0') return 'False';
+                        const match = q.options?.find(o => o.id.toUpperCase() === str);
+                        if (match) return match.text;
+                        if (str === 'A') return 'True';
+                        if (str === 'B') return 'False';
+                      }
+                      if (Array.isArray(ans)) {
+                        return ans.join(', ');
+                      }
+                      if (typeof ans === 'object' && ans !== null) {
+                        return JSON.stringify(ans, null, 2);
+                      }
+                      return String(ans ?? '');
+                    })()}
                   </div>
                 </div>
 

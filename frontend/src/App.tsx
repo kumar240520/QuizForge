@@ -50,6 +50,7 @@ export const App: React.FC = () => {
             {/* Workspace */}
             <Route path="/assessments" element={<MyAssessmentsPage />} />
             <Route path="/assessments/:id/instructions" element={<PreAssessmentPage />} />
+            <Route path="/assessments/:id/pre" element={<PreAssessmentPage />} />
             <Route path="/assessments/:id/bank" element={<AssessmentBankPage />} />
             <Route path="/create-assessment" element={<CreateAssessmentWizard />} />
             <Route path="/create-wizard" element={<CreateAssessmentWizard />} />
@@ -61,6 +62,7 @@ export const App: React.FC = () => {
             <Route path="/imports/:jobId" element={<ImportReviewPage />} />
             <Route path="/review-generated" element={<AIGenerationPage />} />
             <Route path="/builder" element={<AssessmentBuilderPage />} />
+            <Route path="/assessments/:id/edit" element={<AssessmentBuilderPage />} />
 
             {/* Assessment Session (distraction-free rendering inside AppShell) */}
             <Route path="/session/:token" element={<ActiveAssessmentPage />} />

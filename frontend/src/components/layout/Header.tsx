@@ -31,7 +31,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobile }) => {
 
   useEffect(() => {
     if (authService.isAuthenticated()) {
-      authService.getMe().then(setCurrentUser).catch(() => {});
+      authService.getMe().then(setCurrentUser).catch(() => { });
     }
   }, [location.pathname]);
 
@@ -113,8 +113,9 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobile }) => {
 
         {/* Primary CTA */}
         <button
-          onClick={() => navigate('/create-assessment')}
+          onClick={() => navigate('/builder')}
           className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary hover:bg-primary-hover text-primary-foreground shadow-sm transition-colors"
+          title="Create New Assessment"
         >
           <Plus className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">New Assessment</span>

@@ -225,11 +225,17 @@ export const api = {
     authFetch(`${API_BASE}/quizzes/${quizId}/sections/${encodeURIComponent(sectionName)}`, { method: 'DELETE' }).then(r => handleResponse(r)),
 
   // Sessions (Quiz taking)
-  startSession: (quizId: number, questionCount?: number, questionIds?: number[], mode?: string) =>
+  startSession: (quizId: number, questionCount?: number, questionIds?: number[], mode?: string, customDurationMinutes?: number) =>
     authFetch(`${API_BASE}/sessions/start`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quiz_id: quizId, question_count: questionCount, question_ids: questionIds, mode })
+      body: JSON.stringify({
+        quiz_id: quizId,
+        question_count: questionCount,
+        question_ids: questionIds,
+        mode,
+        custom_duration_minutes: customDurationMinutes
+      })
     }).then(r => handleResponse<SessionStatusResponse>(r)),
   getSession: (token: string) =>
     authFetch(`${API_BASE}/sessions/${token}`).then(r => handleResponse<SessionStatusResponse>(r)),

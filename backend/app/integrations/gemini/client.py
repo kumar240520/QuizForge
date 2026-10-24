@@ -170,7 +170,7 @@ Each JSON object must have this exact structure:
 [
   {
     "question_text": "Clear question statement here",
-    "question_type": "single_choice", // one of: single_choice, multiple_choice, true_false, fill_in_the_blank, short_answer, match_the_following, arrange_in_order, numerical, code_output, coding, code_debug, assertion_reasoning, descriptive
+    "question_type": "single_choice", // one of: single_choice, multiple_choice, true_false, fill_in_the_blank, short_answer, match_the_following, arrange_in_order, numerical, code_output, coding, code_debug, assertion_reasoning, descriptive, code_writing
     "difficulty": "medium", // easy, medium, or hard
     "options": [
       {"id": "A", "text": "First option"},
@@ -178,7 +178,7 @@ Each JSON object must have this exact structure:
       {"id": "C", "text": "Third option"},
       {"id": "D", "text": "Fourth option"}
     ],
-    "correct_answer": ["B"], // for single_choice/multiple_choice: array of IDs. For match_the_following: {"A": "Target 1"}. For arrange_in_order: ["STEP1", "STEP2"]. For coding: full reference solution code.
+    "correct_answer": ["B"],
     "accepted_answers": ["alternative acceptable phrasing"],
     "numerical_tolerance": 0.0,
     "explanation": "Detailed explanation of why this answer is correct",
@@ -186,17 +186,50 @@ Each JSON object must have this exact structure:
     "section_name": "Section A: Conceptual Fundamentals",
     "per_question_timer": 60,
     "source_ref": "Reference citation or excerpt",
-    "metadata_extra": {
-      // For type "coding":
-      // "language": "python",
-      // "starter_code": "def solution(...):\n    # Write your code here\n    pass\n",
-      // "test_cases": [{"input": "5", "expected_output": "25"}]
-      // For type "code_output" or "code_debug":
-      // "code_snippet": "for i in range(3):\n    print(i)",
-      // "language": "python"
-    }
+    "metadata_extra": {}
   }
 ]
+
+CRITICAL RULES FOR QUESTION TYPES:
+1. "true_false":
+   - "options" MUST ALWAYS be exactly: [{"id": "TRUE", "text": "True"}, {"id": "FALSE", "text": "False"}]
+   - "correct_answer" MUST be either ["TRUE"] or ["FALSE"] (NEVER use 'A' or 'B' or lowercase).
+2. "single_choice":
+   - "options" are IDs "A", "B", "C", "D". "correct_answer" is a single ID array, e.g. ["B"].
+3. "multiple_choice":
+   - "options" are IDs "A", "B", "C", "D". "correct_answer" is an array of all correct IDs, e.g. ["A", "C"].
+4. "fill_in_the_blank" and "short_answer":
+   - "options" MUST be empty array [].
+   - "correct_answer" is an array with primary answer, e.g. ["Stack"].
+   - "accepted_answers" provides case-insensitive synonyms or alternative spellings.
+5. "numerical":
+   - "options" MUST be empty array [].
+   - "correct_answer" is a number, e.g. 42.5.
+   - "numerical_tolerance" is the accepted margin, e.g. 0.05.
+6. "match_the_following":
+   - "options" are the items to match (Column A / Left): [{"id": "1", "text": "Item 1"}, {"id": "2", "text": "Item 2"}, ...]
+   - "metadata_extra" MUST contain "match_targets" (Column B / Right): [{"id": "A", "text": "Target A"}, {"id": "B", "text": "Target B"}, ...]
+   - "correct_answer" MUST be a JSON object mapping left ID to right ID: {"1": "A", "2": "B", ...}
+7. "arrange_in_order":
+   - "options" are the sequence elements: [{"id": "STEP_1", "text": "Step 1"}, {"id": "STEP_2", "text": "Step 2"}, ...]
+   - "correct_answer" MUST be the array of IDs in correct order: ["STEP_1", "STEP_2", ...]
+8. "assertion_reasoning":
+   - "options" are the 4 standard choices:
+     {"id": "A", "text": "Both (A) and (R) are true, and (R) is the correct explanation of (A)."},
+     {"id": "B", "text": "Both (A) and (R) are true, but (R) is NOT the correct explanation of (A)."},
+     {"id": "C", "text": "(A) is true, but (R) is false."},
+     {"id": "D", "text": "(A) is false, but (R) is true."}
+   - "correct_answer" is ["A"] (or B, C, D).
+9. "code_output" / "code_debug":
+   - "metadata_extra" MUST have "code_snippet": "..." and "language": "python" (or target language).
+   - "options" are A, B, C, D choices and "correct_answer" is ["A"].
+10. "coding":
+   - "metadata_extra" MUST contain "language": "python", "starter_code": "def ...", "constraints": [...], and "test_cases": [{"input": "...", "expected_output": "..."}].
+   - "correct_answer" is the full reference solution code string.
+11. "descriptive" and "code_writing":
+   - "options" MUST be empty array [].
+   - "correct_answer" is the model answer or reference solution.
+
 Ensure the answer key is 100% accurate and mathematically/conceptually sound.
 """)
 
@@ -250,25 +283,121 @@ Ensure the answer key is 100% accurate and mathematically/conceptually sound.
         parsed_results: List[ParsedQuestionItem] = []
         for idx, item in enumerate(items_raw, 1):
             q_text = item.get("question_text") or f"Question {idx}"
-            q_type = item.get("question_type") or "single_choice"
+            q_type = str(item.get("question_type") or "single_choice").lower().strip()
             q_diff = item.get("difficulty") or difficulty if difficulty != "mixed" else "medium"
             sec_name = item.get("section_name") or f"Section: {topic}"
             q_timer = int(item.get("per_question_timer") or 60)
+            meta_extra = dict(item.get("metadata_extra") or {})
             
             raw_options = item.get("options") or []
             options_list: List[QuestionOptionSchema] = []
-            for opt in raw_options:
-                if isinstance(opt, dict):
-                    options_list.append(QuestionOptionSchema(id=str(opt.get("id", "")).upper(), text=str(opt.get("text", ""))))
-                elif isinstance(opt, str):
-                    options_list.append(QuestionOptionSchema(id=chr(65 + len(options_list)), text=opt))
             
-            # Format correct_answer
-            corr = item.get("correct_answer")
-            if q_type in ["single_choice", "multiple_choice", "true_false"] and isinstance(corr, str):
-                corr = [corr.upper()]
-            elif corr is None and options_list:
-                corr = [options_list[0].id]
+            # --- Question Type Specific Normalizers ---
+            
+            # 1. True / False normalization
+            if q_type == "true_false":
+                options_list = [
+                    QuestionOptionSchema(id="TRUE", text="True"),
+                    QuestionOptionSchema(id="FALSE", text="False")
+                ]
+                
+                raw_corr = item.get("correct_answer")
+                corr_val = raw_corr[0] if isinstance(raw_corr, list) and len(raw_corr) > 0 else raw_corr
+                corr_str = str(corr_val or "").strip().upper()
+                
+                # Check if raw options had A as True and B as False
+                opt_a_text = ""
+                opt_b_text = ""
+                for o in raw_options:
+                    if isinstance(o, dict):
+                        oid = str(o.get("id", "")).strip().upper()
+                        otxt = str(o.get("text", "")).strip().lower()
+                        if oid == "A": opt_a_text = otxt
+                        if oid == "B": opt_b_text = otxt
+
+                if corr_str in ["TRUE", "T", "1"]:
+                    corr = ["TRUE"]
+                elif corr_str in ["FALSE", "F", "0"]:
+                    corr = ["FALSE"]
+                elif corr_str == "A":
+                    corr = ["FALSE"] if "false" in opt_a_text else ["TRUE"]
+                elif corr_str == "B":
+                    corr = ["TRUE"] if "true" in opt_b_text else ["FALSE"]
+                else:
+                    corr = ["TRUE"]
+                    
+            # 2. Match the Following normalization
+            elif q_type == "match_the_following":
+                # Ensure options are left items
+                for opt in raw_options:
+                    if isinstance(opt, dict):
+                        options_list.append(QuestionOptionSchema(id=str(opt.get("id", "")), text=str(opt.get("text", ""))))
+                    elif isinstance(opt, str):
+                        options_list.append(QuestionOptionSchema(id=str(len(options_list) + 1), text=opt))
+                
+                # Ensure metadata_extra has match_targets
+                if "match_targets" not in meta_extra or not meta_extra["match_targets"]:
+                    # Fallback default right targets if AI put them in a dict
+                    corr_dict = item.get("correct_answer")
+                    if isinstance(corr_dict, dict):
+                        targets = []
+                        for k, v in corr_dict.items():
+                            targets.append({"id": str(v), "text": str(v)})
+                        meta_extra["match_targets"] = targets
+                    else:
+                        meta_extra["match_targets"] = [
+                            {"id": chr(65 + i), "text": f"Target {chr(65 + i)}"}
+                            for i in range(len(options_list) or 4)
+                        ]
+                
+                raw_corr = item.get("correct_answer")
+                if isinstance(raw_corr, dict):
+                    corr = {str(k): str(v).strip().upper() for k, v in raw_corr.items()}
+                else:
+                    # Synthesize mapping if missing
+                    targets = meta_extra.get("match_targets", [])
+                    corr = {}
+                    for i, opt in enumerate(options_list):
+                        if i < len(targets):
+                            t_id = targets[i].get("id") if isinstance(targets[i], dict) else chr(65 + i)
+                            corr[str(opt.id)] = str(t_id).strip().upper()
+                            
+            # 3. Assertion & Reasoning normalization
+            elif q_type == "assertion_reasoning":
+                options_list = [
+                    QuestionOptionSchema(id="A", text="Both (A) and (R) are true, and (R) is the correct explanation of (A)."),
+                    QuestionOptionSchema(id="B", text="Both (A) and (R) are true, but (R) is NOT the correct explanation of (A)."),
+                    QuestionOptionSchema(id="C", text="(A) is true, but (R) is false."),
+                    QuestionOptionSchema(id="D", text="(A) is false, but (R) is true.")
+                ]
+                raw_corr = item.get("correct_answer")
+                c_val = (raw_corr[0] if isinstance(raw_corr, list) and len(raw_corr) > 0 else raw_corr) or "A"
+                corr = [str(c_val).strip().upper()[:1] if str(c_val).strip() else "A"]
+
+            # 4. Standard Choice / Order / General
+            else:
+                for opt in raw_options:
+                    if isinstance(opt, dict):
+                        options_list.append(QuestionOptionSchema(id=str(opt.get("id", "")).upper(), text=str(opt.get("text", ""))))
+                    elif isinstance(opt, str):
+                        options_list.append(QuestionOptionSchema(id=chr(65 + len(options_list)), text=opt))
+                
+                raw_corr = item.get("correct_answer")
+                if q_type in ["single_choice", "multiple_choice"] and isinstance(raw_corr, str):
+                    corr = [raw_corr.upper()]
+                elif q_type == "arrange_in_order" and isinstance(raw_corr, list):
+                    corr = [str(x) for x in raw_corr]
+                elif q_type == "numerical":
+                    try:
+                        corr = float(raw_corr[0] if isinstance(raw_corr, list) and len(raw_corr) > 0 else raw_corr)
+                    except (ValueError, TypeError):
+                        corr = 0.0
+                elif corr_val := raw_corr:
+                    corr = corr_val
+                elif options_list:
+                    corr = [options_list[0].id]
+                else:
+                    corr = []
                 
             parsed_results.append(
                 ParsedQuestionItem(
@@ -289,7 +418,7 @@ Ensure the answer key is 100% accurate and mathematically/conceptually sound.
                     status="valid",
                     issues=[],
                     is_approved=True,
-                    metadata_extra=item.get("metadata_extra") or {}
+                    metadata_extra=meta_extra
                 )
             )
 

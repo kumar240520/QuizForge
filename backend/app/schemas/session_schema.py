@@ -8,6 +8,7 @@ class StartSessionRequest(BaseModel):
     mode: Optional[str] = None
     question_count: Optional[int] = None
     question_ids: Optional[List[int]] = None
+    custom_duration_minutes: Optional[int] = None
 
 class CheckAnswerRequest(BaseModel):
     question_id: int

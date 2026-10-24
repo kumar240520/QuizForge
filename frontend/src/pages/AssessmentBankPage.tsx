@@ -246,11 +246,20 @@ export const AssessmentBankPage: React.FC = () => {
 
         <div className="flex items-center gap-2">
           <button
+            onClick={() => navigate(`/assessments/${quiz.id}/edit`)}
+            className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-secondary hover:bg-muted text-foreground border border-border shadow-xs transition-colors"
+            title="Edit Assessment Configurations & Rules"
+          >
+            <Sliders className="w-3.5 h-3.5 text-primary" />
+            <span>Edit Settings</span>
+          </button>
+          <button
             onClick={() => navigate(`/assessments/${quiz.id}/instructions`)}
             className="inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-primary hover:bg-primary-hover text-primary-foreground shadow-sm transition-all"
+            title="Start Assessment"
           >
             <Play className="w-3.5 h-3.5" />
-            <span>Take Assessment</span>
+            <span>Start Assessment</span>
           </button>
         </div>
       </div>
